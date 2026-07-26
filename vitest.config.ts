@@ -15,6 +15,11 @@ export default defineConfig({
       "@massingifc/core-kernel": pkg("core-kernel"),
       "@massingifc/project-schema": pkg("project-schema"),
       "@massingifc/plugin-sdk": pkg("plugin-sdk"),
+      "@massingifc/massing": pkg("massing"),
+      "@massingifc/icdd": pkg("icdd"),
+      "@massingifc/interop": pkg("interop"),
+      "@massingifc/markup": pkg("markup"),
+      "@massingifc/estimating-5d": pkg("estimating-5d"),
     },
   },
   test: {

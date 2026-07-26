@@ -1,22 +1,59 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/core-kernel" },
-    { "path": "packages/project-schema" },
-    { "path": "packages/plugin-sdk" },
-    { "path": "packages/viewer-runtime" },
-    { "path": "packages/federation" },
-    { "path": "packages/markup" },
-    { "path": "packages/authoring" },
-    { "path": "packages/massing" },
-    { "path": "packages/family-libraries" },
-    { "path": "packages/digital-twin" },
-    { "path": "packages/coordination" },
-    { "path": "packages/planning-4d" },
-    { "path": "packages/estimating-5d" },
-    { "path": "packages/procurement-field" },
-    { "path": "packages/interop" },
-    { "path": "packages/analytics" },
-    { "path": "packages/ui-shell" }
+    {
+      "path": "packages/core-kernel"
+    },
+    {
+      "path": "packages/project-schema"
+    },
+    {
+      "path": "packages/plugin-sdk"
+    },
+    {
+      "path": "packages/viewer-runtime"
+    },
+    {
+      "path": "packages/federation"
+    },
+    {
+      "path": "packages/markup"
+    },
+    {
+      "path": "packages/authoring"
+    },
+    {
+      "path": "packages/massing"
+    },
+    {
+      "path": "packages/family-libraries"
+    },
+    {
+      "path": "packages/digital-twin"
+    },
+    {
+      "path": "packages/coordination"
+    },
+    {
+      "path": "packages/planning-4d"
+    },
+    {
+      "path": "packages/estimating-5d"
+    },
+    {
+      "path": "packages/procurement-field"
+    },
+    {
+      "path": "packages/interop"
+    },
+    {
+      "path": "packages/analytics"
+    },
+    {
+      "path": "packages/ui-shell"
+    },
+    {
+      "path": "packages/icdd"
+    }
   ]
 }

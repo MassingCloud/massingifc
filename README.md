@@ -48,12 +48,13 @@ working product.
 |---|---|---|
 | `core-kernel` | **Implemented** | DI container, event bus, command bus (+undo), state store, persistence, plugin host, capability & UI registries, permissions, telemetry |
 | `project-schema` | **Implemented** | ~45 record contracts, migration engine, schema registry |
-| `plugin-sdk` | **Implemented** | `definePlugin`, test harness, versioned kernel facade |
+| `plugin-sdk` | **Implemented** | `definePlugin`, test harness, record store, clock/id ports |
+| `massing` | **Implemented** | Planar geometry, sketch validation, story-aware masses, metrics, options, promotion, undoable commands |
+| `icdd` | **Implemented** | ISO 21597 containers: ontologies, RDF/XML codec, assembly, linking, validation |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
 | `federation` | Contracts | Multi-model load/unload/visibility, revision replacement, session state |
 | `markup` | Contracts | Markup, anchors, issues, comment threads, review snapshots |
 | `authoring` | Contracts | Edit sessions, edit commands, history, publish, constraints, sketch planes |
-| `massing` | Contracts | Profiles, story-aware masses, appearance, metrics, options, promotion |
 | `family-libraries` | Contracts | Repository adapters, resolution, placement, parameters, versioning |
 | `digital-twin` | Contracts | Registry, alignment, observations, timeline, promotion |
 | `coordination` | Contracts | Clash, validation, issue routing, revision diff, responsibility |
@@ -149,6 +150,65 @@ const kernel = createKernel({ migrator, storage: myAdapter });
 Reads are pure — `load` migrates the value it returns but does not rewrite storage. Use
 `migrateInPlace` when you want the upgrade persisted; it takes a backup first.
 
+## ISO 21597 (ICDD)
+
+`@massingifc/icdd` implements the Information Container for linked Document Delivery — both parts.
+
+The vocabulary was taken from the published ontology documents at `standards.iso.org`, not
+transcribed from prose: [Container](https://standards.iso.org/iso/21597/-1/ed-1/en/Container.rdf),
+[Linkset](https://standards.iso.org/iso/21597/-1/ed-1/en/Linkset.rdf) and
+[ExtendedLinkset](https://standards.iso.org/iso/21597/-2/ed-1/en/ExtendedLinkset.rdf). Conformance
+depends on those IRIs being exact.
+
+```ts
+const archive = new MemoryArchive();
+
+await writeContainer(archive, {
+  description: { id: "c1", name: "Bridge inspection", conformanceIndicator: "ICDD-Part1-Container" },
+  parties: [{ id: "p1", kind: "Organisation", name: "MassingCloud" }],
+  documents: [
+    { id: "model", kind: "internal", name: "Bridge", filename: "bridge.ifc", filetype: "ifc" },
+    { id: "report", kind: "internal", name: "Inspection", filename: "inspection.pdf" },
+  ],
+  linksets: [{
+    id: "ls1", name: "Findings", filename: "findings.rdf",
+    links: [{
+      type: "Elaborates",
+      from: [{ documentId: "report" }],
+      // Addresses one wall inside the IFC model, not the file as a whole.
+      to: [{ documentId: "model", identifier: { kind: "string", value: "2O2Fr$t4X7Zf8NOew3FLOH", field: "GlobalId" } }],
+    }],
+  }],
+});
+
+const report = await validateContainer(archive);
+```
+
+What is implemented:
+
+- Canonical layout — `index.rdf`, `Ontology resources/`, `Payload documents/`, `Payload triples/`.
+- Internal, external and folder documents; parties; versioning fields; Dublin Core prefix bound.
+- All **nine Part 2 link families as fifteen classes**, with inverse pairing and direction-aware
+  serialisation. `invertLink` swaps class *and* endpoints — swapping only endpoints would leave
+  `HasPart` asserting that a whole is part of its own component.
+- Element-level addressing via string, URI and SPARQL-query identifiers.
+- Structural validation: missing payloads, undeclared files, dangling link targets, directed links
+  missing an endpoint, symmetric links given a direction.
+- Parsed `indexGraph` and `linksetGraphs` are exposed so hosts can run their own SPARQL or the
+  published SHACL shapes.
+
+Two deliberate boundaries:
+
+- **ZIP is a port.** `ContainerArchive` abstracts entry access; the host supplies compression
+  (`CompressionStream`, `node:zlib`, or streaming straight from object storage). Taking a ZIP
+  dependency here would force that choice on every deployment.
+- **Validation is structural, not SHACL.** A full SHACL engine is a large dependency for failures
+  that are almost always mundane — a payload file that never got written, a link to a renamed
+  document. Those are caught here cheaply, with the offending file named.
+
+Known limits: RDF/XML only (no Turtle or JSON-LD), `rdf:parseType` and DTDs are rejected rather
+than mis-parsed, and checksum verification is not performed.
+
 ## Relationship to `ibuilder/massing`
 
 These are complementary, not competing.
@@ -170,7 +230,10 @@ loading — so adoption is implementing an interface over existing code, not rew
 Stated plainly:
 
 - No viewer implementation, no `three`/`@thatopen` integration.
-- No capability family is implemented — all fourteen are contracts only.
+- Twelve capability families remain contracts only: viewer-runtime, federation, markup, authoring,
+  family-libraries, digital-twin, coordination, planning-4d, estimating-5d, procurement-field,
+  interop, analytics, ui-shell.
 - No web or desktop application shell.
 - No storage adapter beyond in-memory; IndexedDB and filesystem adapters are unwritten.
+- No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.
 - No migrations exist yet; every schema sits at v1.
