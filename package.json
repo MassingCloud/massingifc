@@ -12,7 +12,7 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "tsc --build --force",
+    "typecheck": "tsc --build --force && tsc --noEmit -p packages/integration",
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "tsc --build",

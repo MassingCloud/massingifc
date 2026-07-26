@@ -59,6 +59,7 @@ working product.
 | `digital-twin` | **Implemented** | Registry with pluggable factories, planar Procrustes alignment, observations, timelines, gated promotion |
 | `procurement-field` | **Implemented** | Packages from BOQ, vendor comparison and award, element-level field status, inspection, earned value |
 | `federation` | **Implemented** | Project composition, per-model load state, id-preserving revision replacement, session state |
+| `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
 | `authoring` | Contracts | Edit sessions, edit commands, history, publish, constraints, sketch planes |
 | `interop` | Contracts | Import/export adapters, enterprise connectors |
@@ -77,6 +78,9 @@ npm install
 ```bash
 npm test
 ```
+
+476 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
+kernel and exercises the chain from geometry to money to site.
 
 ```bash
 npm run build
