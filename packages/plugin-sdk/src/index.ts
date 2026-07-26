@@ -8,6 +8,20 @@
 
 export { definePlugin, type PluginDefinition } from "./define-plugin.js";
 export { createTestHarness, type TestHarness, type TestHarnessOptions } from "./testing.js";
+export {
+  createRecordStore,
+  type Identified,
+  type RecordStore,
+  type RecordStoreHost,
+} from "./record-store.js";
+export {
+  createCountingIdFactory,
+  createFixedClock,
+  createUuidIdFactory,
+  systemClock,
+  type Clock,
+  type IdFactory,
+} from "./runtime.js";
 
 export {
   createCapabilityToken,
