@@ -22,6 +22,25 @@ import type {
   VendorScopeRecord,
 } from "@massingifc/project-schema";
 
+/** A BOQ line as procurement sees it. Supplied by the 5D plugin, which owns the bill. */
+export interface PackageBoqLine {
+  readonly id: Id;
+  readonly quantity: { readonly value: number; readonly unit: string };
+  readonly total?: Money;
+  readonly elements?: readonly ElementRef[];
+}
+
+/**
+ * Supplies bill lines.
+ *
+ * Procurement must not import estimating: packages are frequently cut from a bill produced
+ * elsewhere, and in a construction-only deployment the bill may not be in this system at all.
+ * Called with no argument, returns every line.
+ */
+export type BoqLineSource = (lineIds?: readonly Id[]) => readonly PackageBoqLine[];
+
+export const BoqLineSourceToken = createCapabilityToken<BoqLineSource>("procurement.boq-lines");
+
 export interface PackageService {
   create(pkg: Omit<ProcurementPackageRecord, "id" | "createdAt">): Promise<Result<ProcurementPackageRecord>>;
   update(packageId: Id, changes: Partial<ProcurementPackageRecord>): Promise<Result<ProcurementPackageRecord>>;

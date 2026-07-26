@@ -1,7 +1,23 @@
 /**
- * `@massingifc/digital-twin` — capability contracts.
- *
- * Interfaces, capability tokens, command ids and permission constants. The implementation is not
- * written yet; consumers can bind against these today and the contract will not move under them.
+ * `@massingifc/digital-twin` — observed reality alongside the authored model.
  */
 export * from "./contracts.js";
+export {
+  applyTransform,
+  composeZRotation,
+  IDENTITY_MATRIX,
+  solveAlignment,
+  type AlignmentSolution,
+  type PointPair,
+} from "./alignment.js";
+export {
+  createTwinAlignmentService,
+  createTwinObservationService,
+  createTwinPromotionService,
+  createTwinRegistryService,
+  createTwinStores,
+  createTwinTimelineService,
+  type TwinRuntime,
+  type TwinStores,
+} from "./services.js";
+export { createTwinPlugin, twinPlugin, type TwinPluginOptions } from "./plugin.js";

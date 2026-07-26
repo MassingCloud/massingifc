@@ -1,7 +1,16 @@
 /**
- * `@massingifc/procurement-field` — capability contracts.
- *
- * Interfaces, capability tokens, command ids and permission constants. The implementation is not
- * written yet; consumers can bind against these today and the contract will not move under them.
+ * `@massingifc/procurement-field` — from priced scope to installed work.
  */
 export * from "./contracts.js";
+export {
+  createFieldStatusService,
+  createInspectionService,
+  createInstallProgressService,
+  createPackageService,
+  createProcurementStores,
+  createVendorScopeService,
+  INSTALLED_STATES,
+  type ProcurementRuntime,
+  type ProcurementStores,
+} from "./services.js";
+export { createProcurementPlugin, procurementPlugin, type ProcurementPluginOptions } from "./plugin.js";

@@ -55,12 +55,12 @@ working product.
 | `estimating-5d` | **Implemented** | Takeoff with a safe expression evaluator, classification, composite rates, BOQ, estimates, cashflow, change impact |
 | `planning-4d` | **Implemented** | Schedule import and re-import, rule-based model links, timeline playback, planned-versus-actual |
 | `coordination` | **Implemented** | Clash with stable signatures and preserved triage, validation, issue routing, revision diff |
+| `family-libraries` | **Implemented** | Repository adapters, semver resolution, package validation, placement, parameter checking, version upgrade |
+| `digital-twin` | **Implemented** | Registry with pluggable factories, planar Procrustes alignment, observations, timelines, gated promotion |
+| `procurement-field` | **Implemented** | Packages from BOQ, vendor comparison and award, element-level field status, inspection, earned value |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
 | `federation` | Contracts | Multi-model load/unload/visibility, revision replacement, session state |
 | `authoring` | Contracts | Edit sessions, edit commands, history, publish, constraints, sketch planes |
-| `family-libraries` | Contracts | Repository adapters, resolution, placement, parameters, versioning |
-| `digital-twin` | Contracts | Registry, alignment, observations, timeline, promotion |
-| `procurement-field` | Contracts | Packages, vendor scope, field status, inspection, install progress |
 | `interop` | Contracts | Import/export adapters, enterprise connectors |
 | `analytics` | Contracts | Metric providers, reports, forecasts |
 | `ui-shell` | Contracts | Layout regions, notifications, palette, dialogs, status bar |
@@ -291,8 +291,8 @@ loading — so adoption is implementing an interface over existing code, not rew
 Stated plainly:
 
 - No viewer implementation, no `three`/`@thatopen` integration.
-- Eight capability families remain contracts only: viewer-runtime, federation, authoring,
-  family-libraries, digital-twin, procurement-field, interop, analytics, ui-shell.
+- Five capability families remain contracts only: viewer-runtime, federation, authoring, interop,
+  analytics, ui-shell.
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.
 - No web or desktop application shell.

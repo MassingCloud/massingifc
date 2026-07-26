@@ -67,6 +67,13 @@ export interface FamilyPackageRecord {
 export interface FamilyInstanceRecord {
   readonly id: Id;
   readonly packageId: Id;
+  /**
+   * The package's stable slug, captured at placement.
+   *
+   * Package *ids* are catalogue entries and do not survive a repository re-sync; the slug is the
+   * identity that does. Without it, re-syncing a library orphans every instance placed from it.
+   */
+  readonly packageSlug?: string;
   readonly packageVersion: string;
   readonly name?: string;
   readonly transform: Matrix4;

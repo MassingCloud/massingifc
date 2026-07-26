@@ -53,6 +53,12 @@ export interface TwinRegistryService {
 
 export const TwinRegistryToken = createCapabilityToken<TwinRegistryService>("twin.registry");
 
+/** A control point correspondence, as supplied by a surveyor or picked on screen. */
+export interface PointPairInput {
+  readonly source: Vec3;
+  readonly target: Vec3;
+}
+
 export interface TwinAlignmentService {
   setTransform(twinObjectId: Id, transform: Matrix4): Promise<Result<TwinAlignmentRecord>>;
   /** Three-point registration — the workflow a surveyor or field engineer actually uses. */
