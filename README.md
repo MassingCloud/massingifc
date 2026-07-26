@@ -58,8 +58,8 @@ working product.
 | `family-libraries` | **Implemented** | Repository adapters, semver resolution, package validation, placement, parameter checking, version upgrade |
 | `digital-twin` | **Implemented** | Registry with pluggable factories, planar Procrustes alignment, observations, timelines, gated promotion |
 | `procurement-field` | **Implemented** | Packages from BOQ, vendor comparison and award, element-level field status, inspection, earned value |
+| `federation` | **Implemented** | Project composition, per-model load state, id-preserving revision replacement, session state |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
-| `federation` | Contracts | Multi-model load/unload/visibility, revision replacement, session state |
 | `authoring` | Contracts | Edit sessions, edit commands, history, publish, constraints, sketch planes |
 | `interop` | Contracts | Import/export adapters, enterprise connectors |
 | `analytics` | Contracts | Metric providers, reports, forecasts |
@@ -291,8 +291,13 @@ loading — so adoption is implementing an interface over existing code, not rew
 Stated plainly:
 
 - No viewer implementation, no `three`/`@thatopen` integration.
-- Five capability families remain contracts only: viewer-runtime, federation, authoring, interop,
-  analytics, ui-shell.
+- Four capability families remain contracts only, each for a stated reason:
+  - `viewer-runtime` needs a renderer, and this repository has no runtime dependencies.
+  - `authoring` needs a geometry kernel to mutate; the contracts define the session, history and
+    publish semantics that sit above one.
+  - `interop` and `analytics` are adapter and aggregation registries whose value is in the
+    adapters, not the registry.
+  - `ui-shell` is implemented by the host application, not here.
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.
 - No web or desktop application shell.

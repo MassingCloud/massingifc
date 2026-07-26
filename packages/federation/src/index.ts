@@ -1,7 +1,13 @@
 /**
- * `@massingifc/federation` — capability contracts.
- *
- * Interfaces, capability tokens, command ids and permission constants. The implementation is not
- * written yet; consumers can bind against these today and the contract will not move under them.
+ * `@massingifc/federation` — running many models as one project.
  */
 export * from "./contracts.js";
+export {
+  createFederationService,
+  createFederationStores,
+  createSessionStateService,
+  type FederationRuntime,
+  type FederationStores,
+  type ModelLoadStateRecord,
+} from "./services.js";
+export { createFederationPlugin, federationPlugin, type FederationPluginOptions } from "./plugin.js";

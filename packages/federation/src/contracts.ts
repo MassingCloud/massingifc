@@ -23,6 +23,20 @@ export interface ModelLoadState {
   readonly loadedAt?: string;
 }
 
+/**
+ * Loads and unloads model payloads.
+ *
+ * The one thing federation genuinely needs from a runtime. Behind a port so the same federation
+ * logic runs in a browser session, a headless conversion job and a test.
+ */
+export interface ModelLoaderPort {
+  load(record: ModelRecord): Promise<Result<void>>;
+  unload(modelId: Id): Promise<Result<void>>;
+  setTransform(modelId: Id, transform: Matrix4): Promise<Result<void>>;
+}
+
+export const ModelLoaderPortToken = createCapabilityToken<ModelLoaderPort>("federation.loader");
+
 export interface FederationService {
   openProject(project: ProjectRecord): Promise<Result<void>>;
   closeProject(): Promise<Result<void>>;
