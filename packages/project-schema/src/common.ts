@@ -33,11 +33,37 @@ export interface Provenance {
   readonly externalId?: string;
 }
 
-/** Reference to an element inside a loaded model. */
+/**
+ * Reference to an element inside a model.
+ *
+ * `globalId` is the identity — the IFC `IfcGloballyUniqueId` carried by the element itself. It
+ * survives re-export, re-conversion, a different viewer, and a new session.
+ *
+ * `localId` is a *transient runtime handle* (a Fragments local id, an express id). It is valid only
+ * for one load of one model in one session: re-converting the same IFC can renumber it. It exists
+ * here purely so runtime code can avoid a lookup on hot paths.
+ *
+ * **Never persist or compare `localId` across sessions, and never anchor a record to it.** Markup,
+ * clashes, 4D links, takeoff and field status all reference elements this way; a transient identity
+ * in this type would propagate silently into every one of them and only surface as "all the pins
+ * moved" after somebody re-issued a model.
+ */
 export interface ElementRef {
   readonly modelId: Id;
-  /** Fragments/IFC local id within the model. */
-  readonly localId: number | string;
+  /** IFC GlobalId. Stable, persistable identity. */
+  readonly globalId: string;
+  /** Session-scoped runtime handle. Cache, never store. */
+  readonly localId?: number | string;
+}
+
+/** Compares element references by their stable identity, ignoring transient handles. */
+export function sameElement(a: ElementRef, b: ElementRef): boolean {
+  return a.modelId === b.modelId && a.globalId === b.globalId;
+}
+
+/** Stable key for maps and sets. Built from identity only, deliberately. */
+export function elementKey(element: ElementRef): string {
+  return `${element.modelId}/${element.globalId}`;
 }
 
 export interface UnitizedValue {

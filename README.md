@@ -46,7 +46,7 @@ working product.
 
 | Package | Status | Contents |
 |---|---|---|
-| `core-kernel` | **Implemented** | DI container, event bus, command bus (+undo), state store, persistence, plugin host, capability & UI registries, permissions, telemetry |
+| `core-kernel` | **Implemented** | DI container, event bus, command bus (+undo), state store, persistence, **project containers**, plugin host, capability & UI registries, permissions, telemetry |
 | `project-schema` | **Implemented** | ~45 record contracts, migration engine, schema registry |
 | `plugin-sdk` | **Implemented** | `definePlugin`, test harness, record store, clock/id ports |
 | `massing` | **Implemented** | Planar geometry, sketch validation, story-aware masses, metrics, options, promotion, undoable commands |
@@ -129,6 +129,67 @@ const harness = createTestHarness();
 await harness.load(greeterPlugin);
 await harness.kernel.commands.execute("demo.greet", { name: "Ada" });
 ```
+
+## Containers
+
+`PersistenceEngine` stores individual versioned documents. A *project* is a different thing: one
+package a user opens, saves and sends, holding models, records and binary payloads together.
+
+`ContainerService` is that mechanism, and it lives in the kernel for the same reason the event bus
+does — leaving it out means the first plugin that needs "open a project package" invents it, and
+every other plugin then reaches around what it invented.
+
+```ts
+const container = unwrap(await kernel.containers.create("massingifc.project", {
+  containerId: "p1", name: "Tower",
+}));
+
+await container.writeDocument("project.json", SCHEMA.project, { name: "Tower" });
+await container.writeBlob("models/tower.frag", fragmentBytes, "application/octet-stream");
+await kernel.containers.save();
+```
+
+Properties worth knowing:
+
+- **One container is active at a time.** Records and the models they reference come back as one
+  act — there is no API that opens one without the other, so they cannot drift apart in app code.
+- **Closing over unsaved work fails** unless forced. Discarding a user's edits to satisfy an
+  `open()` call is not a trade the kernel makes on their behalf.
+- **Format is an adapter.** `StorageContainerAdapter` ships as a working reference; a file-backed
+  `.mmproj` and an ISO 21597 adapter implement the same `ContainerAdapter` interface.
+- **The kernel does not legislate how many models a container holds.** Single-model authoring and
+  federated coordination are both legitimate; that is a product decision, not a backbone one.
+
+## Element identity
+
+`ElementRef` carries an IFC **GlobalId** as its identity:
+
+```ts
+interface ElementRef {
+  readonly modelId: Id;
+  readonly globalId: string;            // stable, persistable
+  readonly localId?: number | string;   // transient runtime handle — cache, never store
+}
+```
+
+`localId` (a Fragments local id, an express id) is valid for one load of one model in one session;
+re-converting the same IFC can renumber it. Markup, clashes, 4D links, takeoff and field status all
+reference elements through this type, so a transient identity here would propagate into every one
+of them and surface only as "all the pins moved" after somebody re-issued a model.
+`SelectionService` implementations must resolve picks to a populated `globalId` before publishing.
+
+## Provenance
+
+Numbers carry their origin rather than implying it. A quantity read off the model and one somebody
+typed are both "1,240 m²" on screen; the difference becomes visible — expensively — when the model
+is re-issued and only one of them moves.
+
+- `QuantityRecord.source` is **required**: takeoff rule and version, or manual/imported/assumed.
+- `BoqLineRecord.rateSource` and `CostAssemblyRecord.rateSource` do the same for money.
+- `TaskModelLinkRecord.ifcRelationship` records intent explicitly, defaulting to
+  `IfcRelAssignsToProduct` — a 4D link almost always names a task's *output*.
+  `IfcRelAssignsToProcess` is for what a task *consumes* (labour, plant, materials). The two are
+  easy to transpose and the result still validates, so the meaning is stated rather than inferred.
 
 ## Versioning and migration
 

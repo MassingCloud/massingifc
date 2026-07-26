@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Framework-agnostic kernel and plugin architecture for a federated AEC platform.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
   },

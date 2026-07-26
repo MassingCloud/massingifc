@@ -20,5 +20,9 @@
     "@massingifc/project-schema": "0.1.0",
     "@massingifc/interop": "0.1.0"
   },
-  "scripts": { "build": "tsc --build", "typecheck": "tsc --noEmit" }
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT"
 }

@@ -70,6 +70,14 @@ export interface ModelLoaderService {
 
 export const ModelLoaderToken = createCapabilityToken<ModelLoaderService>("viewer.loader");
 
+/**
+ * Selection.
+ *
+ * Implementations must resolve picks to `ElementRef` with a populated `globalId` before publishing
+ * them. The renderer knows only its own transient handles, so this is the one place the translation
+ * can happen — every downstream family (markup, clash, 4D, takeoff, field) consumes selection, and
+ * letting a viewer-local id escape here would give all of them a transient identity.
+ */
 export interface SelectionService {
   get(): readonly ElementRef[];
   set(elements: readonly ElementRef[]): void;

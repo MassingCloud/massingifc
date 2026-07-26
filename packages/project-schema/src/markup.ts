@@ -21,6 +21,7 @@ export interface MarkupRecord {
   kind: MarkupKind;
   viewpointId?: string;
   modelId?: string;
+  /** IFC GlobalIds. Not viewer-local ids — a markup anchored to a transient id is a lost markup. */
   elementIds?: string[];
   worldPosition?: [number, number, number];
   screenSpace?: { x: number; y: number };
@@ -42,7 +43,8 @@ export interface AnchorReference {
   readonly id: Id;
   readonly markupId: Id;
   readonly modelId?: Id;
-  readonly localId?: number | string;
+  /** IFC GlobalId of the anchored element. Never a transient viewer id — see `ElementRef`. */
+  readonly globalId?: string;
   readonly worldPosition?: Vec3;
   /** Position relative to the anchored element, so the markup survives the element moving. */
   readonly localOffset?: Vec3;

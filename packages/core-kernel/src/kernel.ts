@@ -1,5 +1,6 @@
 import { CapabilityRegistry } from "./capabilities.js";
 import { CommandBus } from "./commands.js";
+import { ContainerService, StorageContainerAdapter } from "./container-format.js";
 import { createServiceToken, ServiceContainer, type ServiceToken } from "./container.js";
 import type { Disposable } from "./disposable.js";
 import { EventBus } from "./events.js";
@@ -39,6 +40,7 @@ export const PersistenceToken = createServiceToken<PersistenceEngine>("kernel.pe
 export const PermissionsToken = createServiceToken<PermissionService>("kernel.permissions");
 export const TelemetryToken = createServiceToken<TelemetrySink>("kernel.telemetry");
 export const LoggerToken = createServiceToken<Logger>("kernel.logger");
+export const ContainerServiceToken = createServiceToken<ContainerService>("kernel.containers");
 
 export interface KernelOptions {
   readonly storage?: StorageAdapter;
@@ -79,6 +81,14 @@ export interface Kernel<THost = unknown> extends Disposable {
   readonly capabilities: CapabilityRegistry;
   readonly ui: UIExtensionRegistry<THost>;
   readonly persistence: PersistenceEngine;
+  /**
+   * Project containers.
+   *
+   * A container is the unit a user opens, saves and sends. Holding it in the kernel is what makes
+   * a project and the models inside it inseparable — there is no API that opens one without the
+   * other — while leaving the *format* to adapters.
+   */
+  readonly containers: ContainerService;
   readonly permissions: PermissionService;
   readonly telemetry: TelemetrySink;
   readonly plugins: PluginHost<THost>;
@@ -108,13 +118,27 @@ export function createKernel<THost = unknown>(options: KernelOptions = {}): Kern
   permissions.setEvaluator(options.permissionEvaluator ?? ALLOW_ALL);
   if (options.identity) permissions.setIdentity(options.identity);
 
+  // One storage adapter serves both the per-document engine and the container service, so a host
+  // that swaps in IndexedDB or a filesystem gets both at once rather than half a persisted app.
+  const storage = options.storage ?? new MemoryStorageAdapter();
+
   const persistence = new PersistenceEngine({
-    adapter: options.storage ?? new MemoryStorageAdapter(),
+    adapter: storage,
     ...(options.migrator ? { migrator: options.migrator } : {}),
     telemetry,
     ...(options.maxBackups === undefined ? {} : { maxBackups: options.maxBackups }),
     ...(options.now ? { now: options.now } : {}),
   });
+
+  const containers = new ContainerService({
+    events,
+    telemetry,
+    ...(options.migrator ? { migrator: options.migrator } : {}),
+    ...(options.now ? { now: options.now } : {}),
+  });
+  // The reference adapter is registered by default so a host has a working container format from
+  // the first line of code; a real `.mmproj` or ISO 21597 adapter simply registers alongside it.
+  containers.registerAdapter(new StorageContainerAdapter(storage));
 
   const commands = new CommandBus({
     permissions,
@@ -144,6 +168,7 @@ export function createKernel<THost = unknown>(options: KernelOptions = {}): Kern
   services.registerValue(StateStoreToken, state);
   services.registerValue(CapabilityRegistryToken, capabilities);
   services.registerValue(PersistenceToken, persistence);
+  services.registerValue(ContainerServiceToken, containers);
   services.registerValue(PermissionsToken, permissions);
   services.registerValue(TelemetryToken, telemetry);
   services.registerValue(LoggerToken, logger);
@@ -157,6 +182,7 @@ export function createKernel<THost = unknown>(options: KernelOptions = {}): Kern
     capabilities,
     ui,
     persistence,
+    containers,
     permissions,
     telemetry,
     plugins,

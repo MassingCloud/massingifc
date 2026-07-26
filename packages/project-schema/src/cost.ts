@@ -1,6 +1,36 @@
 import type { ElementRef, Id, IsoTimestamp, Money, Provenance, UnitizedValue } from "./common.js";
 
 /**
+ * Where a number came from.
+ *
+ * Carried rather than implied. A quantity read off the model and a quantity somebody typed in are
+ * both "1,240 m²" on screen, and the difference only becomes visible — expensively — when the model
+ * is re-issued and one of them silently fails to move.
+ */
+export interface QuantitySource {
+  readonly kind: "model-takeoff" | "manual" | "imported" | "assumed";
+  /** Takeoff rule and its version, when the quantity was measured. */
+  readonly ruleId?: Id;
+  readonly ruleVersion?: number;
+  /** Model revision measured against — what makes a re-run comparable. */
+  readonly modelVersion?: string;
+  readonly enteredBy?: Id;
+  readonly note?: string;
+}
+
+/** Where a rate came from. Same reasoning as `QuantitySource`, applied to money. */
+export interface RateSource {
+  readonly kind: "library" | "assembly" | "quotation" | "manual" | "benchmark" | "assumed";
+  readonly libraryId?: Id;
+  readonly libraryVersion?: string;
+  readonly assemblyId?: Id;
+  readonly vendorId?: Id;
+  readonly quotedAt?: IsoTimestamp;
+  readonly enteredBy?: Id;
+  readonly note?: string;
+}
+
+/**
  * A measured quantity taken from the model.
  *
  * `elements` is retained rather than just the total. An estimator's first question about any
@@ -15,7 +45,8 @@ export interface QuantityRecord {
   readonly quantity: UnitizedValue;
   readonly elements: readonly ElementRef[];
   readonly classificationCode?: string;
-  readonly ruleId?: Id;
+  /** Required: a quantity whose origin is unknown cannot be defended or re-measured. */
+  readonly source: QuantitySource;
   readonly takenAt: IsoTimestamp;
   readonly provenance?: Provenance;
 }
@@ -78,6 +109,7 @@ export interface CostAssemblyRecord {
   readonly profitPercent?: number;
   readonly libraryId?: Id;
   readonly version?: number;
+  readonly rateSource?: RateSource;
 }
 
 export interface BoqLineRecord {
@@ -89,9 +121,13 @@ export interface BoqLineRecord {
   readonly quantity: UnitizedValue;
   readonly assemblyId?: Id;
   readonly rate?: Money;
+  /** Present whenever `rate` is. A priced line with no rate origin is not reviewable. */
+  readonly rateSource?: RateSource;
   readonly total?: Money;
   /** Quantities this line was measured from — the audit trail back to the model. */
   readonly quantityIds?: readonly Id[];
+  /** Mirrors the quantities' origin so a line can be triaged without dereferencing each one. */
+  readonly quantitySource?: QuantitySource;
   readonly parentId?: Id;
 }
 

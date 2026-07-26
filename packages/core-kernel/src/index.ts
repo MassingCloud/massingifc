@@ -104,6 +104,19 @@ export {
   type VersionedDocument,
 } from "./persistence.js";
 export {
+  ContainerService,
+  StorageContainerAdapter,
+  type ContainerAdapter,
+  type ContainerAdapterOptions,
+  type ContainerCreateInit,
+  type ContainerEntry,
+  type ContainerEntryKind,
+  type ContainerManifest,
+  type ContainerServiceOptions,
+  type ContainerSource,
+  type OpenContainer,
+} from "./container-format.js";
+export {
   PluginHost,
   type ActivationReport,
   type Plugin,
@@ -122,6 +135,7 @@ export {
 export {
   CapabilityRegistryToken,
   CommandBusToken,
+  ContainerServiceToken,
   createKernel,
   EventBusToken,
   KERNEL_API_VERSION,

@@ -21,5 +21,6 @@
   "scripts": {
     "build": "tsc --build",
     "typecheck": "tsc --noEmit"
-  }
+  },
+  "license": "MIT"
 }
