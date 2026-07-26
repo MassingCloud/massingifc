@@ -8,6 +8,7 @@
 
 import { createCapabilityToken, type Result } from "@massingifc/core-kernel";
 import type {
+  ClashKind,
   ClashRecord,
   ClashStatus,
   ClashTestRecord,
@@ -18,6 +19,52 @@ import type {
   ValidationResultRecord,
   ValidationRuleRecord,
 } from "@massingifc/project-schema";
+
+/** A raw intersection, before it is given identity and triage state. */
+export interface RawClash {
+  readonly a: ElementRef;
+  readonly b: ElementRef;
+  readonly point?: readonly [number, number, number];
+  /** Penetration depth, or shortfall against the required clearance. */
+  readonly distance?: number;
+}
+
+/**
+ * Performs the geometric test.
+ *
+ * Intersection needs geometry, which needs a runtime this package must not depend on. Everything
+ * that makes clash detection *useful* rather than merely correct — stable identity across runs,
+ * preserved triage state, promotion to an issue — lives above this port and is testable without it.
+ */
+export interface ClashEngine {
+  intersect(
+    a: readonly ElementRef[],
+    b: readonly ElementRef[],
+    options: { readonly kind: ClashKind; readonly tolerance: number },
+  ): readonly RawClash[];
+}
+
+export const ClashEngineToken = createCapabilityToken<ClashEngine>("coordination.clash-engine");
+
+/** One element as a revision diff sees it. */
+export interface SnapshotElement {
+  readonly element: ElementRef;
+  readonly ifcClass?: string;
+  readonly properties: Readonly<Record<string, unknown>>;
+  readonly quantities?: Readonly<Record<string, number>>;
+  /** Digest of the element's placement. Compared to detect a move without holding a matrix. */
+  readonly placementHash?: string;
+}
+
+/** Supplies the two revisions a diff compares. */
+export interface ModelSnapshotSource {
+  snapshot(modelId: Id, version: string): readonly SnapshotElement[] | undefined;
+  /** Every model id this source can supply. */
+  modelIds(): readonly Id[];
+}
+
+export const ModelSnapshotToken =
+  createCapabilityToken<ModelSnapshotSource>("coordination.model-snapshot");
 
 export interface ClashRunSummary {
   readonly testId: Id;

@@ -1,7 +1,24 @@
 /**
- * `@massingifc/coordination` — capability contracts.
- *
- * Interfaces, capability tokens, command ids and permission constants. The implementation is not
- * written yet; consumers can bind against these today and the contract will not move under them.
+ * `@massingifc/coordination` — clash, validation, routing and change review.
  */
 export * from "./contracts.js";
+export {
+  clashSignature,
+  createClashService,
+  createCoordinationStores,
+  createIssueRoutingService,
+  createResponsibilityService,
+  createRevisionDiffService,
+  createValidationService,
+  diffSnapshots,
+  type CoordinationRuntime,
+  type CoordinationStores,
+  type IssueLike,
+  type IssueSource,
+  type IssueUpdater,
+} from "./services.js";
+export {
+  createCoordinationPlugin,
+  coordinationPlugin,
+  type CoordinationPluginOptions,
+} from "./plugin.js";

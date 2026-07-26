@@ -1,4 +1,10 @@
-import type { CapabilityRegistry, CapabilityToken, ProvideOptions, RequireOptions } from "./capabilities.js";
+import type {
+  CapabilityProvider,
+  CapabilityRegistry,
+  CapabilityToken,
+  ProvideOptions,
+  RequireOptions,
+} from "./capabilities.js";
 import type { CommandBus, CommandDefinition, ExecuteOptions } from "./commands.js";
 import { ServiceContainer } from "./container.js";
 import { DisposableStore, type Disposable } from "./disposable.js";
@@ -65,6 +71,14 @@ export interface PluginCapabilities {
   provide<T>(token: CapabilityToken<T>, value: T, options?: ProvideOptions): Disposable;
   get<T>(token: CapabilityToken<T>, options?: RequireOptions): T | undefined;
   require<T>(token: CapabilityToken<T>, options?: RequireOptions): Result<T>;
+  /**
+   * Every provider of a capability, highest priority first.
+   *
+   * Some capabilities are inherently many-to-one — validation rules, import adapters, metric
+   * providers — where the consumer aggregates rather than chooses. Without this, such a plugin has
+   * to reach past the context to the kernel registry, defeating the tracked-registration contract.
+   */
+  getAll<T>(token: CapabilityToken<T>): readonly CapabilityProvider<T>[];
   has(token: CapabilityToken<unknown>): boolean;
 }
 
@@ -417,6 +431,7 @@ export class PluginHost<THost = unknown> {
           track(capabilities.provide(token, value, { pluginId, ...options })),
         get: (token, options) => capabilities.get(token, options),
         require: (token, options) => capabilities.require(token, options),
+        getAll: (token) => capabilities.getAll(token),
         has: (token) => capabilities.has(token),
       },
       ui: {
