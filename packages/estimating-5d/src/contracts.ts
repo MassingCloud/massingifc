@@ -25,6 +25,45 @@ import type {
   TakeoffRuleRecord,
 } from "@massingifc/project-schema";
 
+/** One element as the takeoff sees it. */
+export interface TakeoffElement {
+  readonly element: ElementRef;
+  readonly ifcClass?: string;
+  readonly properties: Readonly<Record<string, unknown>>;
+  /** Base quantities carried by the element, e.g. `NetVolume`, `Width`, `Height`. */
+  readonly quantities: Readonly<Record<string, number>>;
+}
+
+/**
+ * Supplies model content to the takeoff.
+ *
+ * Estimating must not import the viewer: takeoff runs server-side on a converted model far more
+ * often than it runs in a browser, and a quantity produced in a nightly job has to be identical to
+ * one produced on screen.
+ */
+export interface ModelElementSource {
+  elements(modelId: Id): readonly TakeoffElement[];
+  modelIds(): readonly Id[];
+  /** Revision measured against — recorded on every quantity so a re-run is comparable. */
+  modelVersion(modelId: Id): string | undefined;
+}
+
+export const ModelElementSourceToken =
+  createCapabilityToken<ModelElementSource>("estimating.element-source");
+
+/** Supplies the schedule that a cashflow is spread over. */
+export interface ScheduleBasisSource {
+  periods(from: string, to: string, unit: "week" | "month" | "quarter"): readonly {
+    readonly start: string;
+    readonly end: string;
+    /** 0..1 share of total value falling in this period. */
+    readonly weight: number;
+  }[];
+}
+
+export const ScheduleBasisToken =
+  createCapabilityToken<ScheduleBasisSource>("estimating.schedule-basis");
+
 export interface TakeoffSummary {
   readonly quantities: number;
   readonly elementsMeasured: number;

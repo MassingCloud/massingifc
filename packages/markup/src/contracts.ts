@@ -21,6 +21,45 @@ import type {
   ReviewSnapshot,
 } from "@massingifc/project-schema";
 
+/**
+ * Tells markup whether an element still exists.
+ *
+ * Provided by whatever owns loaded models. Markup must not import the viewer — it has to work in a
+ * headless review service and a test — so the one thing it genuinely needs from the runtime is
+ * behind this port.
+ */
+export interface ElementResolver {
+  exists(modelId: Id, globalId: string): boolean;
+  /** Elements present in a model, used to re-anchor after a revision. */
+  globalIds(modelId: Id): readonly string[];
+}
+
+export const ElementResolverToken = createCapabilityToken<ElementResolver>("markup.element-resolver");
+
+/** Supplies and restores camera state for review snapshots. */
+export interface ViewpointProvider {
+  capture(name?: string): Promise<Result<{ readonly id: Id }>>;
+  apply(viewpointId: Id): Promise<Result<void>>;
+}
+
+export const ViewpointProviderToken =
+  createCapabilityToken<ViewpointProvider>("markup.viewpoint-provider");
+
+/**
+ * Permitted issue status moves.
+ *
+ * An explicit matrix rather than free assignment: "closed" going straight back to "resolved"
+ * without passing through "open" loses the fact that it was reopened, and status histories that
+ * cannot be trusted are the reason people stop using issue tracking in a model.
+ */
+export const ISSUE_TRANSITIONS: Readonly<Record<MarkupStatus, readonly MarkupStatus[]>> =
+  Object.freeze({
+    open: ["in-review", "resolved", "closed"],
+    "in-review": ["open", "resolved"],
+    resolved: ["open", "closed"],
+    closed: ["open"],
+  });
+
 export interface MarkupQuery {
   readonly modelId?: Id;
   readonly viewpointId?: Id;

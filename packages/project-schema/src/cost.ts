@@ -146,7 +146,13 @@ export type EstimateStatus = "draft" | "issued" | "superseded" | "awarded";
 export interface EstimateRecord {
   readonly id: Id;
   readonly name: string;
+  /**
+   * The bill this estimate reports. Once issued, this points at a **frozen copy** — regenerating
+   * the working bill afterwards must not rewrite a document somebody has already acted on.
+   */
   readonly boqId: Id;
+  /** The live bill it was generated from. Revisions re-price against this, not the frozen copy. */
+  readonly workingBoqId?: Id;
   readonly status: EstimateStatus;
   readonly currency: string;
   readonly subtotal: Money;
