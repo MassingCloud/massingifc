@@ -1,0 +1,26 @@
+{
+  "name": "@massingifc/authoring",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Edit sessions, edit commands, history, constraints, sketch planes and publishing.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "dependencies": {
+    "@massingifc/core-kernel": "0.1.0",
+    "@massingifc/plugin-sdk": "0.1.0",
+    "@massingifc/project-schema": "0.1.0"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit"
+  }
+}
