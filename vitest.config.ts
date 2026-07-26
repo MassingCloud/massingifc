@@ -20,6 +20,12 @@ export default defineConfig({
       "@massingifc/interop": pkg("interop"),
       "@massingifc/markup": pkg("markup"),
       "@massingifc/estimating-5d": pkg("estimating-5d"),
+      "@massingifc/planning-4d": pkg("planning-4d"),
+      "@massingifc/coordination": pkg("coordination"),
+      "@massingifc/federation": pkg("federation"),
+      "@massingifc/family-libraries": pkg("family-libraries"),
+      "@massingifc/digital-twin": pkg("digital-twin"),
+      "@massingifc/procurement-field": pkg("procurement-field"),
     },
   },
   test: {

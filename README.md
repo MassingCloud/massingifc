@@ -51,15 +51,15 @@ working product.
 | `plugin-sdk` | **Implemented** | `definePlugin`, test harness, record store, clock/id ports |
 | `massing` | **Implemented** | Planar geometry, sketch validation, story-aware masses, metrics, options, promotion, undoable commands |
 | `icdd` | **Implemented** | ISO 21597 containers: ontologies, RDF/XML codec, assembly, linking, validation |
+| `markup` | **Implemented** | Pins, redlines, GlobalId anchoring with orphan reporting, issue state machine, threads, review snapshots |
+| `estimating-5d` | **Implemented** | Takeoff with a safe expression evaluator, classification, composite rates, BOQ, estimates, cashflow, change impact |
+| `planning-4d` | **Implemented** | Schedule import and re-import, rule-based model links, timeline playback, planned-versus-actual |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
 | `federation` | Contracts | Multi-model load/unload/visibility, revision replacement, session state |
-| `markup` | Contracts | Markup, anchors, issues, comment threads, review snapshots |
 | `authoring` | Contracts | Edit sessions, edit commands, history, publish, constraints, sketch planes |
 | `family-libraries` | Contracts | Repository adapters, resolution, placement, parameters, versioning |
 | `digital-twin` | Contracts | Registry, alignment, observations, timeline, promotion |
 | `coordination` | Contracts | Clash, validation, issue routing, revision diff, responsibility |
-| `planning-4d` | Contracts | Schedule import, task-model links, playback, planned-vs-actual |
-| `estimating-5d` | Contracts | Takeoff, classification, assemblies, BOQ, estimates, cashflow, change impact |
 | `procurement-field` | Contracts | Packages, vendor scope, field status, inspection, install progress |
 | `interop` | Contracts | Import/export adapters, enterprise connectors |
 | `analytics` | Contracts | Metric providers, reports, forecasts |
@@ -291,9 +291,10 @@ loading — so adoption is implementing an interface over existing code, not rew
 Stated plainly:
 
 - No viewer implementation, no `three`/`@thatopen` integration.
-- Twelve capability families remain contracts only: viewer-runtime, federation, markup, authoring,
-  family-libraries, digital-twin, coordination, planning-4d, estimating-5d, procurement-field,
-  interop, analytics, ui-shell.
+- Nine capability families remain contracts only: viewer-runtime, federation, authoring,
+  family-libraries, digital-twin, coordination, procurement-field, interop, analytics, ui-shell.
+  `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
+  runtime dependencies.
 - No web or desktop application shell.
 - No storage adapter beyond in-memory; IndexedDB and filesystem adapters are unwritten.
 - No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.
