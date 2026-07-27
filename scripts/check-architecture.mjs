@@ -28,9 +28,6 @@ const PLATFORM_ADAPTERS = new Map([
   ["@massingifc/storage-browser", []], // browser globals only; no bare imports needed
 ]);
 
-/** The kernel must depend on nothing at all — not even a sibling. */
-const KERNEL = "@massingifc/core-kernel";
-
 /** Packages that must never appear in a browser bundle's import graph from a capability family. */
 const FORBIDDEN_IMPORTS = [
   { pattern: /^three(\/|$)/, why: "a renderer" },
@@ -102,15 +99,39 @@ const sourceFiles = (dir) => {
   return out;
 };
 
-const IMPORT = /(?:^|\n)\s*(?:import|export)[\s\S]*?from\s+["']([^"']+)["']/g;
+/**
+ * Every way a module specifier can appear.
+ *
+ * A single `import … from` pattern was not enough: `import "three";`, `await import("three")` and
+ * `require("three")` all slipped past it, so the check reported success on exactly the violation it
+ * exists to catch. A guard that is trusted and does not fire is worse than no guard. False
+ * positives are the safer failure here — one shows up immediately and is trivially explained.
+ */
+const SPECIFIER_PATTERNS = [
+  // import … from "x" / export … from "x"
+  /(?:^|[\s;}])(?:import|export)\b[\s\S]*?\sfrom\s*["']([^"']+)["']/g,
+  // import "x"  (side-effect only, no bindings)
+  /(?:^|[\s;}])import\s*["']([^"']+)["']/g,
+  // import("x") — dynamic
+  /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g,
+  // require("x") — CommonJS
+  /\brequire\s*\(\s*["']([^"']+)["']\s*\)/g,
+];
+
+/** All module specifiers referenced by a source file. */
+function extractSpecifiers(source) {
+  const found = new Set();
+  for (const pattern of SPECIFIER_PATTERNS) {
+    for (const match of source.matchAll(pattern)) found.add(match[1]);
+  }
+  return found;
+}
 
 for (const name of packages) {
   if (manifests.get(name)?.name === ADAPTER) continue;
 
   for (const file of sourceFiles(join(PACKAGES_DIR, name, "src"))) {
-    const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(IMPORT)) {
-      const specifier = match[1];
+    for (const specifier of extractSpecifiers(readFileSync(file, "utf8"))) {
       const allowed = PLATFORM_ADAPTERS.get(manifests.get(name)?.name ?? "") ?? [];
       if (allowed.some((pattern) => pattern.test(specifier))) continue;
 
@@ -138,8 +159,7 @@ for (const name of packages) {
 
   const used = new Set();
   for (const file of sourceFiles(join(PACKAGES_DIR, name, "src"))) {
-    for (const match of readFileSync(file, "utf8").matchAll(IMPORT)) {
-      const specifier = match[1];
+    for (const specifier of extractSpecifiers(readFileSync(file, "utf8"))) {
       if (specifier.startsWith("@massingifc/")) used.add(specifier);
     }
   }

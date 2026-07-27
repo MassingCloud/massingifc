@@ -58,6 +58,15 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
   readonly #keyRange: typeof IDBKeyRange | undefined;
   #database: IDBDatabase | undefined;
   #opening: Promise<IDBDatabase> | undefined;
+  /**
+   * Bumped by `close` and `destroy`.
+   *
+   * `IDBDatabase.close()` returns immediately and finishes once outstanding transactions do, so a
+   * connection request already in flight resolves *after* the caller asked to close. Without this,
+   * that late arrival would be stored in `#database` and the adapter would hold an open connection
+   * the caller believes is shut — leaving `destroy()` to hit `onblocked` and silently do nothing.
+   */
+  #generation = 0;
 
   constructor(options: IndexedDbStorageOptions = {}) {
     this.#databaseName = options.databaseName ?? DEFAULT_DATABASE;
@@ -91,9 +100,18 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
         reject(new Error("Another tab is holding an older version of the database open."));
     });
 
+    const generation = this.#generation;
     try {
-      this.#database = await this.#opening;
-      return this.#database;
+      const database = await this.#opening;
+      if (generation !== this.#generation) {
+        // Closed while this open was in flight. Honour the close rather than quietly reviving the
+        // connection, and fail the operation that was riding on it instead of completing against a
+        // handle the caller already gave up.
+        database.close();
+        throw new Error("The database was closed while it was being opened.");
+      }
+      this.#database = database;
+      return database;
     } finally {
       this.#opening = undefined;
     }
@@ -147,6 +165,7 @@ export class IndexedDbStorageAdapter implements StorageAdapter {
 
   /** Closes the connection. A host should call this when tearing a project down. */
   close(): void {
+    this.#generation++;
     this.#database?.close();
     this.#database = undefined;
   }

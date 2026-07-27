@@ -66,7 +66,7 @@ working product.
 | `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
 | `viewer-thatopen` | **Implemented** | That Open Components adapter — world bootstrap, FragmentsManager lifecycle, GlobalId resolution. The one package with third-party runtime dependencies |
-| `storage-node` | **Implemented** | Filesystem persistence: atomic writes, path-escape refusal, binary payloads |
+| `storage-node` | **Implemented** | Filesystem persistence: reversible key encoding, serialised atomic writes, binary payloads |
 | `storage-browser` | **Implemented** | IndexedDB persistence: native binary, bounded prefix queries, durable transactions |
 
 "Contracts" means compiling TypeScript interfaces, capability tokens, command ids and permission

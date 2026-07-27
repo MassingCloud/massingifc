@@ -6,6 +6,8 @@
  * same `StorageAdapter` interface and nothing above changes.
  */
 export {
+  decodeKey,
+  encodeKey,
   FileSystemStorageAdapter,
   KeyEscapeError,
   resolveKeyPath,

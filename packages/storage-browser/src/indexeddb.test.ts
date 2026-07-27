@@ -134,6 +134,22 @@ describe("connection handling", () => {
     expect(await fresh().keys()).toEqual([]);
   });
 
+  it("honours a close that lands while an open is still in flight", async () => {
+    // IDBDatabase.close() returns immediately and completes once transactions do, so a connection
+    // request already in flight resolves *after* the caller asked to close. Storing that late
+    // arrival would leave the adapter holding a connection the caller believes is shut, and a
+    // following destroy() would hit onblocked and silently do nothing.
+    const adapter = fresh("racy");
+    const inFlight = adapter.put("a", 1);
+    adapter.close();
+
+    await expect(inFlight).rejects.toThrow(/closed while it was being opened/);
+
+    // And the adapter is genuinely usable again afterwards, not wedged.
+    await adapter.put("b", 2);
+    expect(await adapter.get("b")).toBe(2);
+  });
+
   it("still filters correctly when no key-range constructor is supplied", async () => {
     const rangeless = new IndexedDbStorageAdapter({ factory, databaseName: "rangeless" });
     await rangeless.put("markup:a", {});
