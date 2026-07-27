@@ -1,12 +1,31 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "./src", "outDir": "./dist", "lib": ["ES2022", "DOM"] },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"],
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "lib": [
+      "ES2022",
+      "DOM"
+    ]
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
   "references": [
-    { "path": "../core-kernel" },
-    { "path": "../project-schema" },
-    { "path": "../plugin-sdk" },
-    { "path": "../viewer-runtime" }
+    {
+      "path": "../core-kernel/tsconfig.json"
+    },
+    {
+      "path": "../project-schema/tsconfig.json"
+    },
+    {
+      "path": "../plugin-sdk/tsconfig.json"
+    },
+    {
+      "path": "../viewer-runtime/tsconfig.json"
+    }
   ]
 }

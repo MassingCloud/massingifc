@@ -2,67 +2,67 @@
   "files": [],
   "references": [
     {
-      "path": "packages/core-kernel"
+      "path": "packages/core-kernel/tsconfig.json"
     },
     {
-      "path": "packages/project-schema"
+      "path": "packages/project-schema/tsconfig.json"
     },
     {
-      "path": "packages/plugin-sdk"
+      "path": "packages/plugin-sdk/tsconfig.json"
     },
     {
-      "path": "packages/viewer-runtime"
+      "path": "packages/viewer-runtime/tsconfig.json"
     },
     {
-      "path": "packages/federation"
+      "path": "packages/federation/tsconfig.json"
     },
     {
-      "path": "packages/markup"
+      "path": "packages/markup/tsconfig.json"
     },
     {
-      "path": "packages/authoring"
+      "path": "packages/authoring/tsconfig.json"
     },
     {
-      "path": "packages/massing"
+      "path": "packages/massing/tsconfig.json"
     },
     {
-      "path": "packages/family-libraries"
+      "path": "packages/family-libraries/tsconfig.json"
     },
     {
-      "path": "packages/digital-twin"
+      "path": "packages/digital-twin/tsconfig.json"
     },
     {
-      "path": "packages/coordination"
+      "path": "packages/coordination/tsconfig.json"
     },
     {
-      "path": "packages/planning-4d"
+      "path": "packages/planning-4d/tsconfig.json"
     },
     {
-      "path": "packages/estimating-5d"
+      "path": "packages/estimating-5d/tsconfig.json"
     },
     {
-      "path": "packages/procurement-field"
+      "path": "packages/procurement-field/tsconfig.json"
     },
     {
-      "path": "packages/interop"
+      "path": "packages/interop/tsconfig.json"
     },
     {
-      "path": "packages/analytics"
+      "path": "packages/analytics/tsconfig.json"
     },
     {
-      "path": "packages/ui-shell"
+      "path": "packages/ui-shell/tsconfig.json"
     },
     {
-      "path": "packages/icdd"
+      "path": "packages/icdd/tsconfig.json"
     },
     {
-      "path": "packages/viewer-thatopen"
+      "path": "packages/viewer-thatopen/tsconfig.json"
     },
     {
-      "path": "packages/storage-node"
+      "path": "packages/storage-node/tsconfig.json"
     },
     {
-      "path": "packages/storage-browser"
+      "path": "packages/storage-browser/tsconfig.json"
     }
   ]
 }

@@ -12,13 +12,13 @@
   ],
   "references": [
     {
-      "path": "../core-kernel"
+      "path": "../core-kernel/tsconfig.json"
     },
     {
-      "path": "../project-schema"
+      "path": "../project-schema/tsconfig.json"
     },
     {
-      "path": "../plugin-sdk"
+      "path": "../plugin-sdk/tsconfig.json"
     }
   ]
 }

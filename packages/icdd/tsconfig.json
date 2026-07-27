@@ -1,12 +1,27 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"],
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
   "references": [
-    { "path": "../core-kernel" },
-    { "path": "../project-schema" },
-    { "path": "../plugin-sdk" },
-    { "path": "../interop" }
+    {
+      "path": "../core-kernel/tsconfig.json"
+    },
+    {
+      "path": "../project-schema/tsconfig.json"
+    },
+    {
+      "path": "../plugin-sdk/tsconfig.json"
+    },
+    {
+      "path": "../interop/tsconfig.json"
+    }
   ]
 }

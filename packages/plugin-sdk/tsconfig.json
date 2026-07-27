@@ -4,7 +4,18 @@
     "rootDir": "./src",
     "outDir": "./dist"
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.test.ts"],
-  "references": [{ "path": "../core-kernel" }, { "path": "../project-schema" }]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ],
+  "references": [
+    {
+      "path": "../core-kernel/tsconfig.json"
+    },
+    {
+      "path": "../project-schema/tsconfig.json"
+    }
+  ]
 }
