@@ -5,7 +5,7 @@ import type {
   ProvideOptions,
   RequireOptions,
 } from "./capabilities.js";
-import type { CommandBus, CommandDefinition, ExecuteOptions } from "./commands.js";
+import type { CommandBus, CommandDefinition, CommandInfo, ExecuteOptions } from "./commands.js";
 import { ServiceContainer } from "./container.js";
 import { DisposableStore, type Disposable } from "./disposable.js";
 import { KernelError } from "./errors.js";
@@ -52,6 +52,14 @@ export interface PluginCommands {
     options?: ExecuteOptions,
   ): Promise<Result<R>>;
   has(commandId: string): boolean;
+  /**
+   * Every registered command.
+   *
+   * Read-only enumeration, for plugins whose job *is* the command surface — a palette, a keyboard
+   * binding editor, a diagnostics view. Without it such a plugin has to reach past the context to
+   * the kernel bus, which is exactly the coupling the context exists to prevent.
+   */
+  list(): readonly CommandInfo[];
 }
 
 export interface PluginEvents<TEvents extends EventMap = EventMap> {
@@ -415,6 +423,7 @@ export class PluginHost<THost = unknown> {
         register: (definition) => track(commands.register(definition)),
         execute: (commandId, params, options) => commands.execute(commandId, params, options),
         has: (commandId) => commands.has(commandId),
+        list: () => commands.list(),
       },
       events: {
         on: (type, handler) => track(events.on(type, handler)),

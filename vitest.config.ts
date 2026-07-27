@@ -26,6 +26,8 @@ export default defineConfig({
       "@massingifc/family-libraries": pkg("family-libraries"),
       "@massingifc/digital-twin": pkg("digital-twin"),
       "@massingifc/procurement-field": pkg("procurement-field"),
+      "@massingifc/analytics": pkg("analytics"),
+      "@massingifc/ui-shell": pkg("ui-shell"),
     },
   },
   test: {
