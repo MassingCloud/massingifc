@@ -16,6 +16,17 @@ const PACKAGES_DIR = "packages";
 /** The single package permitted to carry third-party runtime dependencies. */
 const ADAPTER = "@massingifc/viewer-thatopen";
 
+/**
+ * Platform adapters may reach for platform APIs — that is their entire job.
+ *
+ * A category rather than an exception list of convenience: each entry names a package whose
+ * purpose is to bind the portable core to one runtime, and says which APIs that entitles it to.
+ */
+const PLATFORM_ADAPTERS = new Map([
+  ["@massingifc/viewer-thatopen", [/^three(\/|$)/, /^@thatopen\//]],
+  ["@massingifc/storage-node", [/^node:/]],
+]);
+
 /** The kernel must depend on nothing at all — not even a sibling. */
 const KERNEL = "@massingifc/core-kernel";
 
@@ -99,9 +110,14 @@ for (const name of packages) {
     const source = readFileSync(file, "utf8");
     for (const match of source.matchAll(IMPORT)) {
       const specifier = match[1];
+      const allowed = PLATFORM_ADAPTERS.get(manifests.get(name)?.name ?? "") ?? [];
+      if (allowed.some((pattern) => pattern.test(specifier))) continue;
+
       const forbidden = FORBIDDEN_IMPORTS.find((rule) => rule.pattern.test(specifier));
       if (forbidden) {
-        note(`${file}: imports "${specifier}" — ${forbidden.why}. Only ${ADAPTER} may.`);
+        note(
+          `${file}: imports "${specifier}" — ${forbidden.why}. Only a declared platform adapter may.`,
+        );
       }
     }
   }

@@ -31,6 +31,7 @@ export default defineConfig({
       "@massingifc/authoring": pkg("authoring"),
       "@massingifc/viewer-runtime": pkg("viewer-runtime"),
       "@massingifc/viewer-thatopen": pkg("viewer-thatopen"),
+      "@massingifc/storage-node": pkg("storage-node"),
     },
   },
   test: {

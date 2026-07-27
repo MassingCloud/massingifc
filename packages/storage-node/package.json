@@ -1,0 +1,22 @@
+{
+  "name": "@massingifc/storage-node",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Filesystem storage and container adapters for Node hosts. Platform adapter: uses node: built-ins by design.",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "dependencies": {
+    "@massingifc/core-kernel": "0.1.0"
+  },
+  "scripts": { "build": "tsc --build", "typecheck": "tsc --noEmit" }
+}

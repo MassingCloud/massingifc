@@ -65,7 +65,8 @@ working product.
 | `ui-shell` | **Implemented** | Headless reference shell: layout, notifications, progress, palette, status bar |
 | `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
-| `viewer-thatopen` | **Implemented** | That Open Components adapter — world bootstrap, FragmentsManager lifecycle, GlobalId resolution. The one package with runtime dependencies |
+| `viewer-thatopen` | **Implemented** | That Open Components adapter — world bootstrap, FragmentsManager lifecycle, GlobalId resolution. The one package with third-party runtime dependencies |
+| `storage-node` | **Implemented** | Filesystem persistence: atomic writes, path-escape refusal, binary payloads |
 
 "Contracts" means compiling TypeScript interfaces, capability tokens, command ids and permission
 constants — no runtime implementation yet.
@@ -80,7 +81,7 @@ npm install
 npm test
 ```
 
-569 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
+593 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
@@ -332,6 +333,7 @@ Stated plainly:
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.
 - No web or desktop application shell.
-- No storage adapter beyond in-memory; IndexedDB and filesystem adapters are unwritten.
+- No IndexedDB adapter yet, so browser hosts still persist only in memory. `storage-node`
+  covers desktop and server hosts against the same `StorageAdapter` interface.
 - No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.
 - No migrations exist yet; every schema sits at v1.

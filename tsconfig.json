@@ -57,6 +57,9 @@
     },
     {
       "path": "packages/viewer-thatopen"
+    },
+    {
+      "path": "packages/storage-node"
     }
   ]
 }
