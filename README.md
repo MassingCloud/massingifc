@@ -87,6 +87,20 @@ kernel and exercises the chain from geometry to money to site.
 npm run build
 ```
 
+```bash
+npm run verify
+```
+
+`verify` is what CI runs: architecture invariants, then build and typecheck, then tests.
+
+### Enforced invariants
+
+`npm run check:architecture` turns the claims on this page into something that fails a build rather
+than ageing badly. It asserts that only `viewer-thatopen` carries third-party runtime dependencies,
+that `core-kernel` has none at all, that no package outside the adapter imports `three`,
+`@thatopen/*` or a `node:` built-in, that every workspace import is actually declared, and that
+every package is MIT. Prose cannot hold those; a check can.
+
 Requires **Node 20 or newer**. Every package except `viewer-thatopen` has **no runtime
 dependencies** — that adapter carries `three` and `@thatopen/*` so the other sixteen do not.
 

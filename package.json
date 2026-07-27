@@ -16,7 +16,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "node node_modules/typescript/lib/tsc.js --build",
-    "clean": "node node_modules/typescript/lib/tsc.js --build --clean"
+    "clean": "node node_modules/typescript/lib/tsc.js --build --clean",
+    "check:architecture": "node scripts/check-architecture.mjs",
+    "verify": "npm run check:architecture && npm run typecheck && npm test"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

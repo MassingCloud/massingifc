@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push supersedes an in-flight run on the same branch. Cancelling saves runner minutes
+# and stops a slow older run reporting after the newer one has already passed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One Node version failing should not hide the result on the other.
+      fail-fast: false
+      matrix:
+        # 20 is the declared minimum; 24 is current. Both are tested because the toolchain has
+        # already bitten us twice on Node version differences — TypeScript 7's extensionless bin
+        # shim and Vitest 4's use of node:util styleText.
+        node: ["20", "24"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      # `ci` rather than `install`: it fails on a lockfile that has drifted from package.json,
+      # which is exactly what should stop a build rather than being silently reconciled.
+      - name: Install
+        run: npm ci
+
+      - name: Architecture invariants
+        run: npm run check:architecture
+
+      - name: Build and typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      # Separated from `verify` so a newly-published advisory reports as its own failure rather
+      # than looking like the code broke.
+      - name: Audit
+        run: npm audit --audit-level=high
