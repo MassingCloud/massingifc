@@ -1,0 +1,8 @@
+# Normalise line endings so a Windows checkout and a Linux CI runner agree.
+# Without this every commit from Windows emits a wall of LF/CRLF warnings and diffs can appear
+# whole-file when they are not.
+* text=auto eol=lf
+
+# Lockfiles and generated output are noise in review.
+package-lock.json linguist-generated=true -diff
+*.tsbuildinfo binary
