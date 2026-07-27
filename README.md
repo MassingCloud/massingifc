@@ -86,8 +86,19 @@ kernel and exercises the chain from geometry to money to site.
 npm run build
 ```
 
-Requires Node 18 or newer. This repository has **no runtime dependencies** — only TypeScript and
-Vitest as dev tooling.
+Requires **Node 20 or newer**. This repository has **no runtime dependencies** — only TypeScript
+and Vitest as dev tooling.
+
+Two toolchain notes worth knowing:
+
+- The npm scripts invoke `node node_modules/typescript/lib/tsc.js` rather than the `tsc` shim.
+  TypeScript 7 ships an extensionless ESM launcher that Node cannot load as an entry point below
+  ~20.19; calling the library entry is what the shim does anyway, and it works on every supported
+  Node.
+- `tsconfig.base.json` sets `types: ["node"]`. The codebase uses only universal globals
+  (`TextEncoder`, `AbortSignal`, `structuredClone`), but `lib: ["ES2022"]` alone does not declare
+  them. `@types/node` supplies them as a **dev-time** type dependency — no runtime dependency is
+  introduced, and the no-DOM rule still holds.
 
 ## Writing a plugin
 

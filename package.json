@@ -6,21 +6,21 @@
   "description": "Framework-agnostic kernel and plugin architecture for a federated AEC platform.",
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "tsc --build --force && tsc --noEmit -p packages/integration",
+    "typecheck": "node node_modules/typescript/lib/tsc.js --build --force && node node_modules/typescript/lib/tsc.js --noEmit -p packages/integration",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build": "tsc --build",
-    "clean": "tsc --build --clean"
+    "build": "node node_modules/typescript/lib/tsc.js --build",
+    "clean": "node node_modules/typescript/lib/tsc.js --build --clean"
   },
   "devDependencies": {
-    "@types/node": "^18.19.0",
-    "typescript": "5.9.3",
-    "vitest": "3.2.4"
+    "@types/node": "^26.1.1",
+    "typescript": "7.0.2",
+    "vitest": "3.2.7"
   }
 }
