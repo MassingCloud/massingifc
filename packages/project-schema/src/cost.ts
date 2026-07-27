@@ -194,6 +194,13 @@ export interface ChangeImpactRecord {
     readonly delta: UnitizedValue;
   }[];
   readonly deltaCost: Money;
+  /**
+   * Changed elements no priced line could be found for.
+   *
+   * Newly added elements have not been measured yet, so nothing prices them. Reporting them beats
+   * a delta that silently covers only the part of the change that happened to be measurable.
+   */
+  readonly unpricedElements?: readonly ElementRef[];
   readonly scheduleImpactDays?: number;
   readonly status: "identified" | "estimated" | "approved" | "rejected";
   readonly identifiedAt: IsoTimestamp;

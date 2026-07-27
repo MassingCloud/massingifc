@@ -735,11 +735,7 @@ export function createCashflowService(
       const basis = runtime.scheduleBasis();
       if (!basis) return err(missing("schedule basis"));
 
-      const periods = basis.periods(
-        estimate.createdAt,
-        estimate.createdAt,
-        options?.period ?? "month",
-      );
+      const periods = basis.periods(options?.period ?? "month");
       if (periods.length === 0) {
         return err(new KernelError("COMMAND_FAILED", "The schedule basis produced no periods.", {}));
       }
@@ -807,9 +803,23 @@ export function createCashflowService(
 // Change impact
 // ---------------------------------------------------------------------------------------------
 
-export interface RevisionDiffSource {
-  (diffId: Id): { readonly quantityDeltas: Readonly<Record<string, number>> } | undefined;
+/**
+ * One changed element, in the shape a revision diff actually produces.
+ *
+ * `quantityDelta` is keyed by **metric** (`NetVolume`, `GrossArea`) because that is what a diff of
+ * two model snapshots can know. An earlier version of this contract read those keys as
+ * classification codes and looked for a BOQ line whose code matched, so a real coordination diff
+ * matched nothing and every change assessment came back at zero — invisible in tests because each
+ * package mocked the other.
+ */
+export interface ChangeImpactDiffEntry {
+  readonly element: ElementRef;
+  readonly quantityDelta?: Readonly<Record<string, number>>;
 }
+
+export type RevisionDiffSource = (
+  diffId: Id,
+) => { readonly entries: readonly ChangeImpactDiffEntry[] } | undefined;
 
 export function createChangeImpactService(
   runtime: EstimatingRuntime,
@@ -824,21 +834,51 @@ export function createChangeImpactService(
       if (!diff) return err(notFound("revision diff", diffId));
 
       const lines = stores.lines.query((line) => line.boqId === estimate.boqId);
-      const deltaQuantities: { metric: string; delta: { value: number; unit: string } }[] = [];
+
+      /** The quantity that measured this element for this metric, if one exists. */
+      const quantityFor = (element: ElementRef, metric: string) =>
+        stores.quantities.find(
+          (quantity) =>
+            quantity.metric === metric &&
+            quantity.elements.some((each) => elementKey(each) === elementKey(element)),
+        );
+      const lineForQuantity = (quantityId: Id) =>
+        lines.find((line) => (line.quantityIds ?? []).includes(quantityId));
+
+      const totals = new Map<string, { value: number; unit: string }>();
+      const unpriced = new Map<string, ElementRef>();
       let deltaCost = money(0, estimate.currency);
 
-      for (const [metric, delta] of Object.entries(diff.quantityDeltas)) {
-        // Priced at the rate already agreed for that work, not a fresh one — a change is valued
-        // against the contract, and re-rating it silently is how disputes start.
-        const line = lines.find((candidate) => candidate.classificationCode === metric);
-        const unit = line?.quantity.unit ?? "";
-        deltaQuantities.push({ metric, delta: { value: delta, unit } });
-        if (line?.rate) {
-          const added = addMoney(deltaCost, multiplyMoney(line.rate, delta));
-          if (!added.ok) return err(added.error);
-          deltaCost = added.value;
+      for (const entry of diff.entries) {
+        for (const [metric, delta] of Object.entries(entry.quantityDelta ?? {})) {
+          // Element -> the quantity that measured it -> the line that priced that quantity. This
+          // is the same audit trail the takeoff records, walked backwards.
+          const quantity = quantityFor(entry.element, metric);
+          const line = quantity ? lineForQuantity(quantity.id) : undefined;
+
+          const running = totals.get(metric) ?? { value: 0, unit: "" };
+          totals.set(metric, {
+            value: running.value + delta,
+            unit: running.unit || line?.quantity.unit || quantity?.quantity.unit || "",
+          });
+
+          if (line?.rate) {
+            // Priced at the rate already agreed for that work, not a fresh one — a change is
+            // valued against the contract, and re-rating it silently is how disputes start.
+            const added = addMoney(deltaCost, multiplyMoney(line.rate, delta));
+            if (!added.ok) return err(added.error);
+            deltaCost = added.value;
+          } else {
+            // Typically a newly added element: nothing has measured it yet, so nothing prices it.
+            unpriced.set(elementKey(entry.element), entry.element);
+          }
         }
       }
+
+      const deltaQuantities = [...totals].map(([metric, total]) => ({
+        metric,
+        delta: { value: total.value, unit: total.unit },
+      }));
 
       const record: ChangeImpactRecord = {
         id: runtime.ids.next("impact"),
@@ -846,6 +886,7 @@ export function createChangeImpactService(
         estimateId,
         deltaQuantities,
         deltaCost,
+        ...(unpriced.size === 0 ? {} : { unpricedElements: [...unpriced.values()] }),
         status: "estimated",
         identifiedAt: runtime.clock.timestamp(),
       };

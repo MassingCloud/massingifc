@@ -10,10 +10,23 @@ import type { Money } from "@massingifc/project-schema";
  * which destroys trust in the whole document for a reason nobody can find.
  */
 
-export const money = (amount: number, currency: string): Money => ({
-  amount: Math.round(amount),
-  currency,
-});
+/**
+ * Builds a money value, refusing anything that is not a finite number.
+ *
+ * `Math.round(NaN)` is `NaN`, so without this a single bad factor — a malformed rate in an
+ * imported cost library, a division that produced Infinity — propagates silently through
+ * `multiplyMoney` into a BOQ line total, an estimate subtotal, and a cashflow, with every
+ * intermediate check passing. A total of `NaN` on a tender is worse than a thrown error.
+ */
+export const money = (amount: number, currency: string): Money => {
+  if (!Number.isFinite(amount)) {
+    throw new KernelError("COMMAND_FAILED", `Money amount must be finite, got ${amount}.`, {
+      amount,
+      currency,
+    });
+  }
+  return { amount: Math.round(amount), currency };
+};
 
 /** Builds Money from a major-unit figure, e.g. `fromMajor(12.5, "GBP")` -> 1250. */
 export const fromMajor = (major: number, currency: string, minorPerMajor = 100): Money =>
@@ -66,7 +79,21 @@ export const isZero = (value: Money): boolean => value.amount === 0;
 
 type Token = { kind: "number"; value: number } | { kind: "name"; value: string } | { kind: "op"; value: string };
 
-const PRECEDENCE: Readonly<Record<string, number>> = { "+": 1, "-": 1, "*": 2, "/": 2 };
+/** Unary sign, bound tighter than any binary operator and applied right-to-left. */
+const UNARY_MINUS = "u-";
+const UNARY_PLUS = "u+";
+
+const PRECEDENCE: Readonly<Record<string, number>> = {
+  "+": 1,
+  "-": 1,
+  "*": 2,
+  "/": 2,
+  [UNARY_MINUS]: 3,
+  [UNARY_PLUS]: 3,
+};
+
+const RIGHT_ASSOCIATIVE = new Set([UNARY_MINUS, UNARY_PLUS]);
+const IS_UNARY = (operator: string): boolean => RIGHT_ASSOCIATIVE.has(operator);
 
 function tokenize(expression: string): Result<Token[]> {
   const tokens: Token[] = [];
@@ -97,7 +124,18 @@ function tokenize(expression: string): Result<Token[]> {
       continue;
     }
     if ("+-*/()".includes(char)) {
-      tokens.push({ kind: "op", value: char });
+      // A sign is unary when nothing it could operate on precedes it: at the start, after another
+      // operator, or after an opening bracket. `Width * -1` and `-5` are ordinary things for a
+      // measurement rule to say, and previously both were rejected as malformed.
+      const previous = tokens[tokens.length - 1];
+      const expectsOperand =
+        previous === undefined ||
+        (previous.kind === "op" && previous.value !== ")");
+      if ((char === "-" || char === "+") && expectsOperand) {
+        tokens.push({ kind: "op", value: char === "-" ? UNARY_MINUS : UNARY_PLUS });
+      } else {
+        tokens.push({ kind: "op", value: char });
+      }
       index++;
       continue;
     }
@@ -128,9 +166,22 @@ export function evaluateExpression(
 
   const apply = (): Result<void> => {
     const operator = operators.pop();
+    if (operator === undefined) {
+      return err(new KernelError("COMMAND_FAILED", `Malformed expression "${expression}".`, {}));
+    }
+
+    if (IS_UNARY(operator)) {
+      const operand = values.pop();
+      if (operand === undefined) {
+        return err(new KernelError("COMMAND_FAILED", `Malformed expression "${expression}".`, {}));
+      }
+      values.push(operator === UNARY_MINUS ? -operand : operand);
+      return ok(undefined);
+    }
+
     const right = values.pop();
     const left = values.pop();
-    if (operator === undefined || right === undefined || left === undefined) {
+    if (right === undefined || left === undefined) {
       return err(new KernelError("COMMAND_FAILED", `Malformed expression "${expression}".`, {}));
     }
     switch (operator) {
@@ -192,7 +243,11 @@ export function evaluateExpression(
     while (
       operators.length > 0 &&
       operators[operators.length - 1] !== "(" &&
-      (PRECEDENCE[operators[operators.length - 1]!] ?? 0) >= (PRECEDENCE[token.value] ?? 0)
+      // Left-associative operators pop an equal-precedence predecessor so `10 - 3 - 2` groups as
+      // `(10 - 3) - 2`; right-associative unary signs must not, so `- -5` nests correctly.
+      ((PRECEDENCE[operators[operators.length - 1]!] ?? 0) > (PRECEDENCE[token.value] ?? 0) ||
+        ((PRECEDENCE[operators[operators.length - 1]!] ?? 0) === (PRECEDENCE[token.value] ?? 0) &&
+          !RIGHT_ASSOCIATIVE.has(token.value)))
     ) {
       const applied = apply();
       if (!applied.ok) return err(applied.error);

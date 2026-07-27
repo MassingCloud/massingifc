@@ -165,6 +165,7 @@ beforeEach(async () => {
   });
   kernel.capabilities.provide(ModelSnapshotToken, {
     modelIds: () => ["struct"],
+    versions: () => [...snapshots.keys()],
     snapshot: (_modelId, version) => snapshots.get(version)?.map(asSnapshot),
   });
   kernel.capabilities.provide(ClashEngineToken, {

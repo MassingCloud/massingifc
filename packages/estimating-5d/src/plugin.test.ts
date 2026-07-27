@@ -54,7 +54,11 @@ beforeEach(async () => {
       clock: createFixedClock(),
       ids: createCountingIdFactory(),
       currency: "GBP",
-      diffs: (diffId) => (diffId === "diff-1" ? { quantityDeltas: { "C10": 5 } } : undefined),
+      // Element-level, keyed by metric — the shape a coordination revision diff actually emits.
+      diffs: (diffId) =>
+        diffId === "diff-1"
+          ? { entries: [{ element: { modelId: "m1", globalId: "W1" }, quantityDelta: { NetVolume: 5 } }] }
+          : undefined,
     }),
   );
   harness.kernel.capabilities.provide(ModelElementSourceToken, source());
@@ -82,6 +86,14 @@ describe("money arithmetic", () => {
     const result = sumMoney([money(1, "GBP"), money(1, "EUR")], "GBP");
     expect(result.ok).toBe(false);
   });
+
+  it("refuses a non-finite amount instead of producing NaN money", () => {
+    // Math.round(NaN) is NaN, so a single bad factor — a malformed rate in an imported cost
+    // library — used to flow silently into a line total, a subtotal and a cashflow.
+    expect(() => money(Number.NaN, "GBP")).toThrow(/finite/);
+    expect(() => money(Number.POSITIVE_INFINITY, "GBP")).toThrow(/finite/);
+    expect(() => multiplyMoney(money(100, "GBP"), Number.NaN)).toThrow(/finite/);
+  });
 });
 
 describe("takeoff expressions", () => {
@@ -105,6 +117,27 @@ describe("takeoff expressions", () => {
     expect(evaluateExpression("2 +", {}).ok).toBe(false);
     expect(evaluateExpression("(2 + 3", {}).ok).toBe(false);
     expect(evaluateExpression("1 / 0", {}).ok).toBe(false);
+  });
+
+  it("supports a leading or embedded sign", () => {
+    // `Width * -1` and `-5` are ordinary things for a measurement rule to say; both used to be
+    // rejected as malformed.
+    expect(unwrapOk(evaluateExpression("-5", {}))).toBe(-5);
+    expect(unwrapOk(evaluateExpression("W * -1", { W: 3 }))).toBe(-3);
+    expect(unwrapOk(evaluateExpression("-W + 10", { W: 4 }))).toBe(6);
+    expect(unwrapOk(evaluateExpression("2 * -3 + 1", {}))).toBe(-5);
+    expect(unwrapOk(evaluateExpression("3 - -2", {}))).toBe(5);
+  });
+
+  it("keeps binary operators left-associative", () => {
+    // A right-associative slip here turns 10-3-2 into 9 and 100/5/2 into 40.
+    expect(unwrapOk(evaluateExpression("10 - 3 - 2", {}))).toBe(5);
+    expect(unwrapOk(evaluateExpression("100 / 5 / 2", {}))).toBe(10);
+  });
+
+  it("still rejects an operator with nothing to operate on", () => {
+    expect(evaluateExpression("* 5", {}).ok).toBe(false);
+    expect(evaluateExpression("5 *", {}).ok).toBe(false);
   });
 
   it("does not execute arbitrary code", () => {
@@ -540,11 +573,39 @@ describe("change impact", () => {
     const changes = unwrapOk(harness.kernel.capabilities.require(ChangeImpactToken));
     const impact = unwrapOk(await changes.assess("diff-1", estimate.id));
 
-    // 5 m3 more at £10/m3.
+    // 5 m3 more at £10/m3, resolved element -> quantity -> priced line.
     expect(impact.deltaCost).toEqual(fromMajor(50, "GBP"));
+    expect(impact.deltaQuantities).toEqual([{ metric: "NetVolume", delta: { value: 5, unit: "m3" } }]);
+    expect(impact.unpricedElements).toBeUndefined();
 
     await changes.setStatus(impact.id, "approved");
     expect(unwrapOk(changes.totalApproved(estimate.id))).toEqual(fromMajor(50, "GBP"));
+  });
+
+  it("reports elements it could not price rather than under-reporting the change", async () => {
+    // An added element has not been measured yet, so no quantity and no line exist for it. A delta
+    // that silently covered only the measurable half would read as a smaller change than it is.
+    const bare = createTestHarness();
+    await bare.load(
+      createEstimatingPlugin({
+        ids: createCountingIdFactory(),
+        currency: "GBP",
+        diffs: () => ({
+          entries: [{ element: { modelId: "m1", globalId: "NEW-1" }, quantityDelta: { NetVolume: 7 } }],
+        }),
+      }),
+    );
+    const boqService = unwrapOk(bare.kernel.capabilities.require(BoqToken));
+    const estimateService = unwrapOk(bare.kernel.capabilities.require(EstimateToken));
+    const boq = unwrapOk(await boqService.create("B", "GBP"));
+    const estimate = unwrapOk(await estimateService.create("E", boq.id));
+
+    const changes = unwrapOk(bare.kernel.capabilities.require(ChangeImpactToken));
+    const impact = unwrapOk(await changes.assess("any", estimate.id));
+
+    expect(impact.deltaCost).toEqual(money(0, "GBP"));
+    expect(impact.unpricedElements?.map((e) => e.globalId)).toEqual(["NEW-1"]);
+    await bare.dispose();
   });
 
   it("reports an unknown diff", async () => {

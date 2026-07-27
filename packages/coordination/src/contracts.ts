@@ -61,6 +61,14 @@ export interface ModelSnapshotSource {
   snapshot(modelId: Id, version: string): readonly SnapshotElement[] | undefined;
   /** Every model id this source can supply. */
   modelIds(): readonly Id[];
+  /**
+   * Known revisions of a model, oldest first.
+   *
+   * Needed by `compareToPrevious`, which otherwise has no way to name the revision before the
+   * current one — it previously compared the latest recorded diff's target against itself and so
+   * always reported no changes.
+   */
+  versions(modelId: Id): readonly string[];
 }
 
 export const ModelSnapshotToken =

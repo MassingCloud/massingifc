@@ -323,6 +323,7 @@ describe("revision diff", () => {
   it("compares two revisions through the service", async () => {
     const snapshots: ModelSnapshotSource = {
       modelIds: () => ["arch"],
+      versions: () => ["C01", "C02"],
       snapshot: (_modelId, version) =>
         version === "C01" ? [element("A"), element("B")] : [element("A")],
     };
@@ -334,9 +335,38 @@ describe("revision diff", () => {
     expect(diff.entries[0]?.kind).toBe("removed");
   });
 
+  it("compareToPrevious compares the last two revisions, not one against itself", async () => {
+    harness.kernel.capabilities.provide(ModelSnapshotToken, {
+      modelIds: () => ["arch"],
+      versions: () => ["C01", "C02"],
+      snapshot: (_modelId, version) =>
+        version === "C01" ? [element("A"), element("B")] : [element("A")],
+    });
+
+    const diff = unwrapOk(await diffs().compareToPrevious("arch"));
+
+    // It used to pass the same version as both sides, so every model reported "nothing changed".
+    expect(diff.fromVersion).toBe("C01");
+    expect(diff.toVersion).toBe("C02");
+    expect(diff.entries).toHaveLength(1);
+  });
+
+  it("says so when a model has no predecessor to compare against", async () => {
+    harness.kernel.capabilities.provide(ModelSnapshotToken, {
+      modelIds: () => ["arch"],
+      versions: () => ["C01"],
+      snapshot: () => [element("A")],
+    });
+
+    const result = await diffs().compareToPrevious("arch");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toContain("two are needed");
+  });
+
   it("reports a missing snapshot rather than diffing against nothing", async () => {
     harness.kernel.capabilities.provide(ModelSnapshotToken, {
       modelIds: () => ["arch"],
+      versions: () => ["C01", "C02"],
       snapshot: () => undefined,
     });
 

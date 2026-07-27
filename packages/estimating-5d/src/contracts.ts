@@ -51,9 +51,15 @@ export interface ModelElementSource {
 export const ModelElementSourceToken =
   createCapabilityToken<ModelElementSource>("estimating.element-source");
 
-/** Supplies the schedule that a cashflow is spread over. */
+/**
+ * Supplies the schedule a cashflow is spread over.
+ *
+ * The basis decides its own window, because the programme does — an estimate has only a creation
+ * date, and asking it to bound the spread produced a zero-width window that a real provider
+ * answers with no periods at all.
+ */
 export interface ScheduleBasisSource {
-  periods(from: string, to: string, unit: "week" | "month" | "quarter"): readonly {
+  periods(unit: "week" | "month" | "quarter"): readonly {
     readonly start: string;
     readonly end: string;
     /** 0..1 share of total value falling in this period. */

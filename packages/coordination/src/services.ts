@@ -492,16 +492,26 @@ export function createRevisionDiffService(
     },
 
     async compareToPrevious(modelId) {
-      const history = stores.diffs.query((diff) => diff.modelId === modelId);
-      const latest = history[history.length - 1];
-      if (!latest) {
+      const source = runtime.snapshots();
+      if (!source) {
         return err(
-          new KernelError("COMMAND_FAILED", `No diff history for "${modelId}" to compare against.`, {
-            modelId,
-          }),
+          new KernelError("CAPABILITY_NOT_FOUND", "No model snapshot source is installed.", {}),
         );
       }
-      return compare(modelId, latest.toVersion, latest.toVersion);
+      const versions = source.versions(modelId);
+      if (versions.length < 2) {
+        // One revision has no predecessor. Saying so beats returning an empty diff, which reads
+        // as "nothing changed" — which is exactly what this used to do for every model, because
+        // it compared the latest revision against itself.
+        return err(
+          new KernelError(
+            "COMMAND_FAILED",
+            `"${modelId}" has ${versions.length} known revision(s); two are needed to compare.`,
+            { modelId, versions },
+          ),
+        );
+      }
+      return compare(modelId, versions[versions.length - 2]!, versions[versions.length - 1]!);
     },
 
     get: (diffId) => stores.diffs.get(diffId),
