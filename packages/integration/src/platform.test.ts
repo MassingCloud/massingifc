@@ -42,6 +42,13 @@ import {
   ScheduleImportToken,
   TaskModelLinkToken,
 } from "@massingifc/planning-4d";
+import { createAuthoringPlugin, GeometryBackendToken } from "@massingifc/authoring";
+import { createFamilyPlugin, FamilyRepositoryAdapterToken, createMemoryRepositoryAdapter } from "@massingifc/family-libraries";
+import { createTwinPlugin, TwinRegistryToken } from "@massingifc/digital-twin";
+import { createIcddPlugin, IcddToken, MemoryArchive } from "@massingifc/icdd";
+import { createInteropPlugin, InteropToken } from "@massingifc/interop";
+import { createAnalyticsPlugin, AnalyticsToken, MetricProviderToken } from "@massingifc/analytics";
+import { createShellPlugin, ShellToken } from "@massingifc/ui-shell";
 import {
   createProcurementPlugin,
   BoqLineSourceToken,
@@ -134,6 +141,13 @@ beforeEach(async () => {
   kernel.use(createEstimatingPlugin({ clock, ids, currency: "GBP" }));
   kernel.use(createPlanningPlugin({ clock, ids }));
   kernel.use(createProcurementPlugin({ clock, ids, currency: "GBP" }));
+  kernel.use(createAuthoringPlugin({ clock, ids }));
+  kernel.use(createFamilyPlugin({ clock, ids }));
+  kernel.use(createTwinPlugin({ clock, ids }));
+  kernel.use(createIcddPlugin({ clock }));
+  kernel.use(createInteropPlugin({ clock }));
+  kernel.use(createAnalyticsPlugin({ clock, ids }));
+  kernel.use(createShellPlugin({ ids, panels: () => [...kernel.ui.byPoint("panel")] }));
 
   const report = await kernel.start();
   expect(report.failed).toHaveLength(0);
@@ -192,7 +206,25 @@ beforeEach(async () => {
 
 describe("plugin composition", () => {
   it("activates every capability family into one kernel", () => {
-    expect(kernel.plugins.list().filter((p) => p.status === "active")).toHaveLength(7);
+    // All fourteen at once. Duplicate command ids or capability tokens would show up here as a
+    // quarantined plugin rather than as the two identical strings that caused them.
+    expect(kernel.plugins.list().filter((p) => p.status === "active")).toHaveLength(14);
+  });
+
+  it("gives every plugin a distinct command and capability namespace", () => {
+    const commandIds = kernel.commands.list().map((command) => command.id);
+    expect(new Set(commandIds).size).toBe(commandIds.length);
+
+    const tokens = kernel.capabilities.tokens();
+    expect(new Set(tokens).size).toBe(tokens.length);
+  });
+
+  it("wires the shell to the panels the plugins actually contributed", () => {
+    const shell = unwrapOk(kernel.capabilities.require(ShellToken));
+    // The shell reads the kernel's UI registry rather than keeping its own list, so every panel a
+    // capability family registered is openable.
+    expect(shell.panels().length).toBe(kernel.ui.byPoint("panel").length);
+    expect(shell.panels().length).toBeGreaterThan(8);
   });
 
   it("registers all of their commands and panels on one bus and shell", () => {
@@ -463,5 +495,87 @@ describe("persistence across the whole platform", () => {
     const restored = unwrapOk(fresh.capabilities.require(MarkupToken));
     expect(restored.query()).toHaveLength(1);
     expect(restored.query()[0]?.text).toBe("Persisted");
+  });
+});
+
+describe("the remaining families compose too", () => {
+  it("authoring, families, twin, icdd, interop and analytics all expose their capabilities", () => {
+    for (const token of [
+      GeometryBackendToken,
+      FamilyRepositoryAdapterToken,
+      TwinRegistryToken,
+      IcddToken,
+      InteropToken,
+      AnalyticsToken,
+      ShellToken,
+    ]) {
+      // Ports the host supplies are absent; capabilities the plugins own are present.
+      const owned = [TwinRegistryToken, IcddToken, InteropToken, AnalyticsToken, ShellToken];
+      expect(kernel.capabilities.has(token)).toBe(owned.includes(token as never));
+    }
+  });
+
+  it("packages a project as an ISO 21597 container", async () => {
+    const icdd = unwrapOk(kernel.capabilities.require(IcddToken));
+    const archive = new MemoryArchive();
+
+    const written = await icdd.write(archive, {
+      description: { id: "c1", name: "Integration Tower", conformanceIndicator: "ICDD-Part1-Container" },
+      parties: [],
+      documents: [
+        { id: "model", kind: "internal", name: "Structure", filename: "struct.ifc", filetype: "ifc" },
+      ],
+      linksets: [],
+    });
+    expect(written.ok).toBe(true);
+
+    await archive.write("Payload documents/struct.ifc", new TextEncoder().encode("ISO-10303-21;"));
+    const validated = unwrapOk(await icdd.validate(archive));
+    expect(validated.conformant).toBe(true);
+  });
+
+  it("feeds a family library and a twin object into the same kernel", async () => {
+    kernel.capabilities.provide(
+      FamilyRepositoryAdapterToken,
+      createMemoryRepositoryAdapter([
+        {
+          id: "col-1",
+          repositoryId: "repo-1",
+          name: "Column",
+          slug: "massingcloud/column",
+          version: "1.0.0",
+          license: "MIT",
+          parameters: [],
+        },
+      ]),
+    );
+    const twins = unwrapOk(kernel.capabilities.require(TwinRegistryToken));
+    const registered = await twins.register({
+      id: "scan-1",
+      name: "Site scan",
+      kind: "point-cloud",
+      transform: [],
+      aligned: false,
+      provenance: { source: "probe" },
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
+
+    expect(registered.ok).toBe(true);
+    // A twin object and a BIM-derived quantity coexist in one project without either converting.
+    expect(twins.list()).toHaveLength(1);
+  });
+
+  it("collects metrics from whichever families provide them", async () => {
+    kernel.capabilities.provide(MetricProviderToken, {
+      definitions: [{ id: "clash.open", label: "Open clashes", unit: "count", domain: "coordination" }],
+      sample: async (metricId) => ({
+        ok: true,
+        value: [{ metricId, at: "2026-01-01T00:00:00.000Z", value: 3 }],
+      }),
+    });
+
+    const analytics = unwrapOk(kernel.capabilities.require(AnalyticsToken));
+    const points = unwrapOk(await analytics.sample(["clash.open"]));
+    expect(points[0]?.value).toBe(3);
   });
 });
