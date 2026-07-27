@@ -61,6 +61,7 @@ working product.
 | `federation` | **Implemented** | Project composition, per-model load state, id-preserving revision replacement, session state |
 | `authoring` | **Implemented** | Edit sessions, sketch-plane maths, reversible history, conflict-checked publish, constraints |
 | `interop` | **Implemented** | Content-first format detection, import/export dispatch, connector governance |
+| `engine-bridge` | **Implemented** | Engine-neutral scene packages: GlobalId-keyed nodes, precomputed class/level indexes, properties and relationships, binary payloads by reference |
 | `analytics` | **Implemented** | Metric provider aggregation, history, snapshots, reports, forecasts with bounds |
 | `ui-shell` | **Implemented** | Headless reference shell: layout, notifications, progress, palette, status bar |
 | `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
@@ -111,7 +112,7 @@ that `core-kernel` has none at all, that no package outside the adapter imports 
 every package is MIT. Prose cannot hold those; a check can.
 
 Requires **Node 20 or newer**. Every package except `viewer-thatopen` has **no runtime
-dependencies** — that adapter carries `three` and `@thatopen/*` so the other sixteen do not.
+dependencies** — that adapter carries `three` and `@thatopen/*` so the other seventeen do not.
 
 Two toolchain notes worth knowing:
 
@@ -310,6 +311,114 @@ Two deliberate boundaries:
 Known limits: RDF/XML only (no Turtle or JSON-LD), `rdf:parseType` and DTDs are rejected rather
 than mis-parsed, and checksum verification is not performed.
 
+## Georeferencing and captured reality
+
+A transform is not georeferencing. It places geometry relative to a project origin nobody outside
+the project knows, which is why a scan aligned by matrix alone cannot be checked against a survey
+or dropped into a GIS scene. `GeoReference` in `project-schema` is shared rather than owned by one
+capability family, because a reference model, a laser scan, a Gaussian splat and a site boundary
+all have to say where on Earth they are and have to say it the same way.
+
+```ts
+const scan: TwinObjectRecord = {
+  id: "scan-1", name: "West elevation", kind: "gaussian-splat",
+  transform: [], aligned: true, createdAt: now, provenance: { source: "drone" },
+  geoReference: {
+    sourceCrs: "EPSG:27700", units: "m", verticalDatum: "ODN", method: "survey",
+    // Subtracted from world coordinates so the renderer works near zero.
+    originOffset: [530000, 180000, 0],
+  },
+  extent: { xmin: 0, ymin: 0, xmax: 42, ymax: 30 },
+  derivatives: { orthomosaicUri: "blob:ortho", meshUri: "blob:mesh" },
+  purpose: "inspection",
+};
+
+const report = await validateRealityDataset(scan, { resolveUri });
+```
+
+Three things this encodes that a bare transform cannot:
+
+- **`originOffset` exists for float precision.** A British National Grid easting is around 530000.
+  A 32-bit float carries about seven significant digits, so geometry rendered at true coordinates
+  jitters and z-fights. Every renderer works in a local frame; recording the offset is what makes
+  that frame reversible instead of a lossy fudge.
+- **`verticalDatum` is separate from the horizontal CRS.** Two datasets can agree exactly in plan
+  and sit a metre apart in height — the difference between a slab that clashes and one that does not.
+- **`method` records how the georeference was established.** `"survey"` and `"assumed"` are
+  different facts, and treating them alike is how unverified data gets trusted.
+
+### Gaussian splats are a first-class kind, not a mesh
+
+`"gaussian-splat"` sits alongside `"point-cloud"` and `"mesh-scan"` rather than being folded into
+them, because a radiance field renders convincingly and measures badly: it is view-dependent, and
+it has no surface. A dimension picked off one is a plausible-looking number with no defined
+relationship to the building.
+
+So the platform refuses rather than guesses. `isMeasurable` returns false for a bare splat and for
+anything marked `purpose: "visualization"`, and promotion to `authoring` or `family` is refused
+with the reason — while registering it as an `asset` stays allowed, because cataloguing it is fine.
+Deriving a mesh (`derivatives.meshUri`) lifts the restriction, since that is a surface.
+
+`validateRealityDataset` reports the rest: a missing georeference on captured reality is an error;
+an unqualified CRS code, an implausible extent, large coordinates with no origin offset, an
+unverified georeference and unresolvable derivative links are warnings. Extents are read in their
+declared units before being judged, so a 40000 mm building is not mistaken for a 40 km capture.
+
+## Rendering in a game engine
+
+The platform will need a real-time engine eventually. The mistake to avoid is writing an Unreal
+layer or a Unity layer — both would bake one vendor's object model into the conversion path, and the
+conversion path is the part that has to survive. `@massingifc/engine-bridge` defines a neutral
+package instead: a JSON manifest plus opaque binary payloads that an Unreal C++ plugin, a Unity C#
+importer, a Bevy crate or a native viewer can each read with a JSON parser and a file handle. **No
+JavaScript runtime is required on the far side.**
+
+```ts
+const scene = buildScenePackage({
+  generator: "massingifc", generatedAt: now, sourceUnits: "mm",
+  nodes: elements.map((e) => ({
+    globalId: e.globalId,           // identity
+    ifcClass: e.ifcClass, levelGlobalId: e.storey,
+    payloadId: "geometry-0", geometryIndex: e.meshIndex,
+  })),
+  payloads: [{ id: "geometry-0", role: "geometry", path: payloadPath("geometry-0", "glb"),
+              encoding: "model/gltf-binary", byteLength: bytes.length }],
+});
+
+await writeScenePackage(archive, scene.value, { payloads: new Map([["geometry-0", bytes]]) });
+```
+
+What makes it a BIM contract rather than a mesh dump:
+
+- **GlobalId is the identity, everywhere.** An element costed in `estimating-5d`, clashed in
+  `coordination` and selected in the engine are the same element because all three key on the same
+  string. A viewer's runtime id may travel as `transientLocalId`, labelled transient, used by
+  nothing — the integration suite asserts it never reaches the index.
+- **Semantics travel.** Property sets stay unflattened, relationships stay as typed edges, and the
+  spatial parent and level are on every node. An importer that drops these has built another mesh
+  importer.
+- **Indexes are precomputed.** `byClass`, `byLevel` and `byGlobalId` are built once by the
+  exporter, which already holds the model, rather than on every load in every engine.
+- **Metres, always.** `sourceUnits` records what the model was authored in — that is provenance —
+  but every coordinate that leaves is metres, so no consumer guesses. Transforms are column-major
+  with translation at indices 12–14, stated explicitly because a transposed matrix loads without
+  error and puts the model somewhere else.
+- **Payloads stay separate files.** An engine wants to parse a small manifest and then stream or
+  memory-map geometry it may never fully load. Base64 inside JSON forces the whole model through a
+  parser and inflates it by a third.
+- **`realityLayers` carry a `measurable` flag,** so a splat arrives in the engine marked as
+  something to render, not something to collide with or dimension.
+
+`buildScenePackage` refuses duplicate GlobalIds instead of letting the second silently displace the
+first in the index, and `validateScenePackage` catches stale indexes and missing payloads here,
+where the message is useful, rather than inside a C++ importer that finds a null. `createSceneQuery`
+is the reference semantics for the runtime queries — an engine will reimplement them natively, and
+this is what those implementations agree with.
+
+**No Unreal or Unity layer is included, deliberately.** That Open's FragmentsUnreal is not public at
+the time of writing; when it is, a vendor layer can be added underneath this contract without
+anything upstream changing. A vendor-specific contract could not have been.
+
 ## Relationship to `ibuilder/massing`
 
 These are complementary, not competing.
@@ -333,7 +442,7 @@ Stated plainly:
 - No viewer implementation, no `three`/`@thatopen` integration.
 - `viewer-runtime` is contracts by design — it is the interface. `viewer-thatopen` implements it
   against That Open Components and is the **only** package with runtime dependencies, which is
-  precisely what keeps the other sixteen dependency-free.
+  precisely what keeps the other seventeen dependency-free.
 - The renderer is covered by a Playwright smoke test (`npm run test:browser`) that boots the real
   engine against a real WebGL context and asserts the world builds and disposal releases. Rendered
   *output* is still not asserted — no screenshot comparison — so a change that renders the wrong
@@ -341,6 +450,9 @@ Stated plainly:
   exist, which are open, what the layout was — and leaves rendering to the host.
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.
+- No engine-side importer. `engine-bridge` defines the package an Unreal, Unity or native consumer
+  reads; writing that consumer is downstream work, and no vendor layer is included until
+  FragmentsUnreal is public.
 - No web or desktop application shell.
 - No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.
 - No migrations exist yet; every schema sits at v1.

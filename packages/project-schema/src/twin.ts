@@ -1,9 +1,17 @@
 import type { ElementRef, Id, IsoTimestamp, Matrix4, Provenance, Vec3 } from "./common.js";
+import type { DatasetPurpose, Extent, GeoReference, RealityDerivatives } from "./geo.js";
 
 export type TwinObjectKind =
   | "three-group"
   | "gltf"
   | "point-cloud"
+  /**
+   * A radiance-field scene of oriented Gaussians.
+   *
+   * Kept a first-class kind rather than folded into "mesh-scan" because it is not a surface: it
+   * renders convincingly and measures badly, and the platform needs to be able to tell them apart.
+   */
+  | "gaussian-splat"
   | "mesh-scan"
   | "image-anchor"
   | "sensor"
@@ -30,6 +38,19 @@ export interface TwinObjectRecord {
   readonly alignmentConfidence?: number;
   readonly aligned: boolean;
   readonly visible?: boolean;
+  /**
+   * Where on Earth this sits.
+   *
+   * Distinct from `transform`, which only places it relative to the project origin. Without this a
+   * scan cannot be checked against a survey, combined with GIS layers, or re-registered after the
+   * project origin moves.
+   */
+  readonly geoReference?: GeoReference;
+  readonly extent?: Extent;
+  /** Products from the same capture — orthomosaic, point cloud, derived mesh, source imagery. */
+  readonly derivatives?: RealityDerivatives;
+  /** What this dataset may legitimately be used for. Defaults to context when unstated. */
+  readonly purpose?: DatasetPurpose;
   readonly provenance: Provenance;
   readonly capturedAt?: IsoTimestamp;
   readonly createdAt: IsoTimestamp;

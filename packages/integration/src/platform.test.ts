@@ -47,6 +47,13 @@ import { createFamilyPlugin, FamilyRepositoryAdapterToken, createMemoryRepositor
 import { createTwinPlugin, TwinRegistryToken } from "@massingifc/digital-twin";
 import { createIcddPlugin, IcddToken, MemoryArchive } from "@massingifc/icdd";
 import { createInteropPlugin, InteropToken } from "@massingifc/interop";
+import {
+  createEngineBridgePlugin,
+  buildScenePackage,
+  createSceneQuery,
+  ScenePackageProviderToken,
+  type ScenePackage,
+} from "@massingifc/engine-bridge";
 import { createAnalyticsPlugin, AnalyticsToken, MetricProviderToken } from "@massingifc/analytics";
 import { createShellPlugin, ShellToken } from "@massingifc/ui-shell";
 import {
@@ -146,6 +153,7 @@ beforeEach(async () => {
   kernel.use(createTwinPlugin({ clock, ids }));
   kernel.use(createIcddPlugin({ clock }));
   kernel.use(createInteropPlugin({ clock }));
+  kernel.use(createEngineBridgePlugin());
   kernel.use(createAnalyticsPlugin({ clock, ids }));
   kernel.use(createShellPlugin({ ids, panels: () => [...kernel.ui.byPoint("panel")] }));
 
@@ -206,9 +214,9 @@ beforeEach(async () => {
 
 describe("plugin composition", () => {
   it("activates every capability family into one kernel", () => {
-    // All fourteen at once. Duplicate command ids or capability tokens would show up here as a
+    // All fifteen at once. Duplicate command ids or capability tokens would show up here as a
     // quarantined plugin rather than as the two identical strings that caused them.
-    expect(kernel.plugins.list().filter((p) => p.status === "active")).toHaveLength(14);
+    expect(kernel.plugins.list().filter((p) => p.status === "active")).toHaveLength(15);
   });
 
   it("gives every plugin a distinct command and capability namespace", () => {
@@ -563,6 +571,49 @@ describe("the remaining families compose too", () => {
     expect(registered.ok).toBe(true);
     // A twin object and a BIM-derived quantity coexist in one project without either converting.
     expect(twins.list()).toHaveLength(1);
+  });
+
+  it("carries the same GlobalIds into an engine scene package", async () => {
+    // The host builds the package from the same element source that fed takeoff and coordination.
+    // This is the whole claim of the bridge: an element costed here and clashed here is the same
+    // element an engine selects there, because all three key on the GlobalId and nothing else.
+    kernel.capabilities.provide(ScenePackageProviderToken, {
+      build: async () =>
+        buildScenePackage({
+          generator: "integration",
+          generatedAt: clock.timestamp(),
+          sources: [{ modelId: "struct", modelName: "Structure", revision: "C01" }],
+          nodes: elements.map((element) => ({
+            globalId: element.globalId,
+            ifcClass: element.ifcClass.toUpperCase(),
+            levelGlobalId: "L1",
+          })),
+        }),
+    });
+
+    const interop = unwrapOk(kernel.capabilities.require(InteropToken));
+    expect(interop.exportFormats().map((format) => format.id)).toContain("massingifc-scene");
+
+    const bytes = unwrapOk(await interop.export("massingifc-scene"));
+    const scene = JSON.parse(new TextDecoder().decode(bytes)) as ScenePackage;
+    const query = createSceneQuery(scene);
+
+    const clash = unwrapOk(kernel.capabilities.require(ClashToken));
+    const test = unwrapOk(
+      await clash.defineTest({
+        name: "Columns vs beams",
+        selectionA: ["struct"],
+        selectionB: ["struct"],
+        kind: "hard",
+        tolerance: 0,
+      }),
+    );
+    await clash.run(test.id);
+    const clashed = clash.results(test.id)[0]!.a.globalId;
+
+    expect(query.node(clashed)).toBeDefined();
+    expect(query.byClass("IFCCOLUMN")).toHaveLength(2);
+    expect(scene.sources[0]?.revision).toBe("C01");
   });
 
   it("collects metrics from whichever families provide them", async () => {

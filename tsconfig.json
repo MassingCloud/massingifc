@@ -56,6 +56,9 @@
       "path": "packages/icdd/tsconfig.json"
     },
     {
+      "path": "packages/engine-bridge/tsconfig.json"
+    },
+    {
       "path": "packages/viewer-thatopen/tsconfig.json"
     },
     {

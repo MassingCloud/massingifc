@@ -11,6 +11,18 @@ export {
   type PointPair,
 } from "./alignment.js";
 export {
+  isMeasurable,
+  isRealityKind,
+  measurabilityIssue,
+  validateRealityDataset,
+  REALITY_KINDS,
+  type RealityIssue,
+  type RealityIssueCode,
+  type RealitySeverity,
+  type RealityValidationOptions,
+  type RealityValidationReport,
+} from "./reality.js";
+export {
   createTwinAlignmentService,
   createTwinObservationService,
   createTwinPromotionService,

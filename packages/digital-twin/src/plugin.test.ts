@@ -298,4 +298,33 @@ describe("promotion", () => {
     expect(promotion().history("scan-1")).toHaveLength(1);
     expect(promoted.promotedBy).toBe("surveyor");
   });
+
+  it("refuses to author geometry from a radiance field that has no surface", async () => {
+    await registry().register(twin({ kind: "gaussian-splat" }));
+    await alignment().alignByPoints("scan-1", [{ source: [0, 0, 0], target: [0, 0, 0] }]);
+
+    // The refusal is about what the data is, not how well it was captured: a splat renders
+    // convincingly and has no surface, so a wall traced from one is a guess wearing a dimension.
+    const result = await promotion().promote("scan-1", "authoring");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toMatch(/no derived mesh/);
+  });
+
+  it("allows authoring from a splat once a mesh has been derived", async () => {
+    await registry().register(
+      twin({ kind: "gaussian-splat", derivatives: { meshUri: "blob:mesh" } }),
+    );
+    await alignment().alignByPoints("scan-1", [{ source: [0, 0, 0], target: [0, 0, 0] }]);
+
+    expect((await promotion().promote("scan-1", "authoring")).ok).toBe(true);
+  });
+
+  it("still lets a view-only capture be registered as an asset", async () => {
+    await registry().register(twin({ kind: "gaussian-splat", purpose: "visualization" }));
+    await alignment().alignByPoints("scan-1", [{ source: [0, 0, 0], target: [0, 0, 0] }]);
+
+    // Cataloguing it is fine. Dimensioning off it is not.
+    expect((await promotion().promote("scan-1", "asset")).ok).toBe(true);
+    expect((await promotion().promote("scan-1", "family")).ok).toBe(false);
+  });
 });

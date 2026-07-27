@@ -15,6 +15,7 @@ import {
   type RecordStore,
 } from "@massingifc/plugin-sdk";
 import { IDENTITY_MATRIX, solveAlignment } from "./alignment.js";
+import { measurabilityIssue } from "./reality.js";
 import type {
   TwinAlignmentService,
   TwinObjectFactory,
@@ -354,6 +355,19 @@ export function createTwinPromotionService(
         return err(
           new KernelError("COMMAND_FAILED", `Twin object "${twinObjectId}" is not aligned.`, {
             twinObjectId,
+          }),
+        );
+      }
+
+      const unmeasurable = measurabilityIssue(twin);
+      if (unmeasurable && target !== "asset") {
+        // Promotion to authoring or a family produces geometry people will dimension off. A
+        // radiance field has no surface to dimension, so the refusal is about what the data is,
+        // not how carefully it was captured. Registering it as an asset stays allowed.
+        return err(
+          new KernelError("COMMAND_FAILED", `Cannot promote to ${target}: ${unmeasurable.message}`, {
+            twinObjectId,
+            code: unmeasurable.code,
           }),
         );
       }
