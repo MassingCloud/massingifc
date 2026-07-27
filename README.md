@@ -59,12 +59,12 @@ working product.
 | `digital-twin` | **Implemented** | Registry with pluggable factories, planar Procrustes alignment, observations, timelines, gated promotion |
 | `procurement-field` | **Implemented** | Packages from BOQ, vendor comparison and award, element-level field status, inspection, earned value |
 | `federation` | **Implemented** | Project composition, per-model load state, id-preserving revision replacement, session state |
+| `authoring` | **Implemented** | Edit sessions, sketch-plane maths, reversible history, conflict-checked publish, constraints |
 | `interop` | **Implemented** | Content-first format detection, import/export dispatch, connector governance |
 | `analytics` | **Implemented** | Metric provider aggregation, history, snapshots, reports, forecasts with bounds |
 | `ui-shell` | **Implemented** | Headless reference shell: layout, notifications, progress, palette, status bar |
 | `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
-| `authoring` | Contracts | Edit sessions, edit commands, history, publish, constraints, sketch planes |
 
 "Contracts" means compiling TypeScript interfaces, capability tokens, command ids and permission
 constants — no runtime implementation yet.
@@ -79,7 +79,7 @@ npm install
 npm test
 ```
 
-523 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
+557 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
@@ -306,12 +306,8 @@ loading — so adoption is implementing an interface over existing code, not rew
 Stated plainly:
 
 - No viewer implementation, no `three`/`@thatopen` integration.
-- Two capability families remain contracts only, each for a stated reason:
-  - `viewer-runtime` needs a renderer, and this repository has no runtime dependencies.
-  - `authoring` needs a geometry kernel to mutate; the contracts define the session, history and
-    publish semantics that sit above one.
-
-  Everything else is implemented. `ui-shell` ships the *bookkeeping* half of a shell — which panels
+- `viewer-runtime` remains contracts only: it needs a renderer, and the core packages have no
+  runtime dependencies. Everything else is implemented. `ui-shell` ships the *bookkeeping* half of a shell — which panels
   exist, which are open, what the layout was — and leaves rendering to the host.
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.

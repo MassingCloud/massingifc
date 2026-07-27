@@ -28,6 +28,7 @@ export default defineConfig({
       "@massingifc/procurement-field": pkg("procurement-field"),
       "@massingifc/analytics": pkg("analytics"),
       "@massingifc/ui-shell": pkg("ui-shell"),
+      "@massingifc/authoring": pkg("authoring"),
     },
   },
   test: {
