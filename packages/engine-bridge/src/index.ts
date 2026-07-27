@@ -19,6 +19,11 @@ export {
   type WriteSceneOptions,
 } from "./codec.js";
 export { createSceneQuery, type SceneQuery } from "./query.js";
+export { toRealityLayer, toRealityLayers } from "./reality.js";
+export {
+  createViewerScenePackageProvider,
+  type ViewerScenePackageOptions,
+} from "./from-viewer.js";
 export {
   createEngineBridgePlugin,
   createSceneExportAdapter,

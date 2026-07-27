@@ -2,6 +2,7 @@ import {
   convertLength,
   extentIsValid,
   extentSpan,
+  measurabilityReason,
   parseCrsCode,
   type TwinObjectKind,
   type TwinObjectRecord,
@@ -237,21 +238,14 @@ export async function validateRealityDataset(
 }
 
 /**
- * Whether a dataset may back a measurement or a derived authored object.
+ * The reason a dataset cannot back a measurement, as a reportable issue.
  *
- * A Gaussian splat renders convincingly and measures badly: it is a view-dependent radiance
- * representation, not a surface, so a distance picked off one is a plausible-looking number with
- * no defined relationship to the building. It qualifies only once a mesh has been derived from it.
+ * The rule itself lives on the schema (`measurabilityReason`) so the promotion gate, a measurement
+ * tool and an engine exporter all read the same one. This only turns it into a message.
  */
-export function isMeasurable(record: TwinObjectRecord): boolean {
-  if (record.purpose === "visualization") return false;
-  if (record.kind === "gaussian-splat") return record.derivatives?.meshUri !== undefined;
-  return true;
-}
-
-/** The reason `isMeasurable` said no, for callers that need to explain themselves. */
 export function measurabilityIssue(record: TwinObjectRecord): RealityIssue | undefined {
-  if (record.purpose === "visualization") {
+  const reason = measurabilityReason(record);
+  if (reason === "visualization-only") {
     return {
       severity: "error",
       code: "purpose-not-measurable",
@@ -259,7 +253,7 @@ export function measurabilityIssue(record: TwinObjectRecord): RealityIssue | und
       subject: "purpose",
     };
   }
-  if (record.kind === "gaussian-splat" && record.derivatives?.meshUri === undefined) {
+  if (reason === "no-surface") {
     return {
       severity: "error",
       code: "splat-without-surface",

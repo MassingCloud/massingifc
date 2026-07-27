@@ -59,6 +59,33 @@ export interface TwinObjectRecord {
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
+/** Why a dataset may not back a measurement. */
+export type UnmeasurableReason =
+  /** Declared for looking at, not for taking numbers off. */
+  | "visualization-only"
+  /** A radiance field with no mesh derived from it — there is no surface to measure against. */
+  | "no-surface";
+
+/**
+ * Whether a dataset may back a measurement or a derived authored object.
+ *
+ * Lives on the schema rather than in the twin service because it is a property of the record, and
+ * everything that consumes twin records has to agree about it — the promotion gate, a measurement
+ * tool, an engine exporter marking a layer as collidable. A second copy of this rule anywhere is a
+ * place where a splat quietly becomes measurable.
+ */
+export function measurabilityReason(record: TwinObjectRecord): UnmeasurableReason | undefined {
+  if (record.purpose === "visualization") return "visualization-only";
+  if (record.kind === "gaussian-splat" && record.derivatives?.meshUri === undefined) {
+    return "no-surface";
+  }
+  return undefined;
+}
+
+export function isMeasurable(record: TwinObjectRecord): boolean {
+  return measurabilityReason(record) === undefined;
+}
+
 /** A registration attempt that moved a twin object into project coordinates. */
 export interface TwinAlignmentRecord {
   readonly id: Id;

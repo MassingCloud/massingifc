@@ -49,11 +49,12 @@ import { createIcddPlugin, IcddToken, MemoryArchive } from "@massingifc/icdd";
 import { createInteropPlugin, InteropToken } from "@massingifc/interop";
 import {
   createEngineBridgePlugin,
-  buildScenePackage,
   createSceneQuery,
+  createViewerScenePackageProvider,
   ScenePackageProviderToken,
   type ScenePackage,
 } from "@massingifc/engine-bridge";
+import type { SpatialTreeNode } from "@massingifc/viewer-runtime";
 import { createAnalyticsPlugin, AnalyticsToken, MetricProviderToken } from "@massingifc/analytics";
 import { createShellPlugin, ShellToken } from "@massingifc/ui-shell";
 import {
@@ -573,28 +574,54 @@ describe("the remaining families compose too", () => {
     expect(twins.list()).toHaveLength(1);
   });
 
-  it("carries the same GlobalIds into an engine scene package", async () => {
-    // The host builds the package from the same element source that fed takeoff and coordination.
-    // This is the whole claim of the bridge: an element costed here and clashed here is the same
-    // element an engine selects there, because all three key on the GlobalId and nothing else.
-    kernel.capabilities.provide(ScenePackageProviderToken, {
-      build: async () =>
-        buildScenePackage({
-          generator: "integration",
-          generatedAt: clock.timestamp(),
-          sources: [{ modelId: "struct", modelName: "Structure", revision: "C01" }],
-          nodes: elements.map((element) => ({
-            globalId: element.globalId,
-            ifcClass: element.ifcClass.toUpperCase(),
-            levelGlobalId: "L1",
-          })),
-        }),
-    });
+  it("carries the same GlobalIds from the viewer contracts into an engine scene package", async () => {
+    // The provider reads the spatial tree and property service, exactly as a real viewer supplies
+    // them. This is the whole claim of the bridge: an element costed in estimating, clashed in
+    // coordination and selected in an engine is the same element, because all three key on the
+    // GlobalId and nothing else.
+    const tree: SpatialTreeNode = {
+      id: "root",
+      label: "Structure",
+      element: { modelId: "struct", globalId: "L1" },
+      ifcClass: "IfcBuildingStorey",
+      children: elements.map((element) => ({
+        id: element.globalId,
+        label: element.globalId,
+        ifcClass: element.ifcClass,
+        element: asRef(element),
+        children: [],
+      })),
+    };
+
+    kernel.capabilities.provide(
+      ScenePackageProviderToken,
+      createViewerScenePackageProvider({
+        tree: { build: async () => ({ ok: true, value: tree }), buildFederated: async () => ({ ok: true, value: [tree] }) },
+        properties: {
+          get: async (element) => ({ ok: true, value: { element, attributes: {} } }),
+          getMany: async (refs) => ({
+            ok: true,
+            value: refs.map((element) => ({
+              element,
+              attributes: {},
+              quantities: {
+                NetVolume: elements.find((e) => e.globalId === element.globalId)?.volume ?? 0,
+              },
+            })),
+          }),
+          find: async () => ({ ok: true, value: [] }),
+        },
+        models: () => unwrapOk(kernel.capabilities.require(FederationToken)).models(),
+        now: () => clock.timestamp(),
+      }),
+    );
 
     const interop = unwrapOk(kernel.capabilities.require(InteropToken));
     expect(interop.exportFormats().map((format) => format.id)).toContain("massingifc-scene");
 
-    const bytes = unwrapOk(await interop.export("massingifc-scene"));
+    const bytes = unwrapOk(
+      await interop.export("massingifc-scene", { scope: { includeProperties: true } }),
+    );
     const scene = JSON.parse(new TextDecoder().decode(bytes)) as ScenePackage;
     const query = createSceneQuery(scene);
 
@@ -611,8 +638,12 @@ describe("the remaining families compose too", () => {
     await clash.run(test.id);
     const clashed = clash.results(test.id)[0]!.a.globalId;
 
+    // The clashed element is addressable in the engine package, on the right level, with the
+    // quantity that priced it.
     expect(query.node(clashed)).toBeDefined();
+    expect(query.byLevel("L1")).toHaveLength(3);
     expect(query.byClass("IFCCOLUMN")).toHaveLength(2);
+    expect(query.property(clashed, "NetVolume", "Quantities")).toBe(4);
     expect(scene.sources[0]?.revision).toBe("C01");
   });
 

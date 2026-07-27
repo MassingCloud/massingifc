@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { GeoReference, TwinObjectRecord } from "@massingifc/project-schema";
-import {
-  isMeasurable,
-  isRealityKind,
-  measurabilityIssue,
-  validateRealityDataset,
-} from "./reality.js";
+import { isMeasurable, type GeoReference, type TwinObjectRecord } from "@massingifc/project-schema";
+import { isRealityKind, measurabilityIssue, validateRealityDataset } from "./reality.js";
 
 const BRITISH_NATIONAL_GRID: GeoReference = {
   sourceCrs: "EPSG:27700",

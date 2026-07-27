@@ -61,7 +61,7 @@ working product.
 | `federation` | **Implemented** | Project composition, per-model load state, id-preserving revision replacement, session state |
 | `authoring` | **Implemented** | Edit sessions, sketch-plane maths, reversible history, conflict-checked publish, constraints |
 | `interop` | **Implemented** | Content-first format detection, import/export dispatch, connector governance |
-| `engine-bridge` | **Implemented** | Engine-neutral scene packages: GlobalId-keyed nodes, precomputed class/level indexes, properties and relationships, binary payloads by reference |
+| `engine-bridge` | **Implemented** | Engine-neutral scene packages: GlobalId-keyed nodes, precomputed class/level indexes, properties and relationships, binary payloads by reference, a provider built on the viewer contracts |
 | `analytics` | **Implemented** | Metric provider aggregation, history, snapshots, reports, forecasts with bounds |
 | `ui-shell` | **Implemented** | Headless reference shell: layout, notifications, progress, palette, status bar |
 | `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
@@ -83,7 +83,7 @@ npm install
 npm test
 ```
 
-705 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
+721 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
@@ -317,7 +317,9 @@ A transform is not georeferencing. It places geometry relative to a project orig
 the project knows, which is why a scan aligned by matrix alone cannot be checked against a survey
 or dropped into a GIS scene. `GeoReference` in `project-schema` is shared rather than owned by one
 capability family, because a reference model, a laser scan, a Gaussian splat and a site boundary
-all have to say where on Earth they are and have to say it the same way.
+all have to say where on Earth they are and have to say it the same way. `ModelRecord` and
+`TwinObjectRecord` both carry one — a model's `transform` records where someone *put* a model
+delivered on a different datum, which is not the same fact as where it belongs.
 
 ```ts
 const scan: TwinObjectRecord = {
@@ -409,6 +411,18 @@ What makes it a BIM contract rather than a mesh dump:
 - **`realityLayers` carry a `measurable` flag,** so a splat arrives in the engine marked as
   something to render, not something to collide with or dimension.
 
+`createViewerScenePackageProvider` builds packages from the `viewer-runtime` contracts — the
+spatial tree and the property service are all it needs, so it works with any viewer and keeps
+`engine-bridge` free of `three` and `@thatopen`. It walks the tree into GlobalId-keyed nodes,
+skips grouping nodes the viewer invented (no element, no identity), stamps the containing storey
+down each branch, and refuses a scope whose models declare different CRSs rather than picking one
+and hiding a problem that has to be fixed upstream. Non-scalar property values are dropped rather
+than stringified: `"[object Object]"` is indistinguishable from a real value, an absent key is not.
+
+It does **not** produce geometry — nothing in the viewer contracts hands out mesh buffers — so it
+emits the semantic half, which is already enough for selection, filtering and property inspection.
+`validateScenePackage` reports the absence rather than leaving a consumer to discover it.
+
 `buildScenePackage` refuses duplicate GlobalIds instead of letting the second silently displace the
 first in the index, and `validateScenePackage` catches stale indexes and missing payloads here,
 where the message is useful, rather than inside a C++ importer that finds a null. `createSceneQuery`
@@ -450,8 +464,9 @@ Stated plainly:
   exist, which are open, what the layout was — and leaves rendering to the host.
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.
-- No engine-side importer. `engine-bridge` defines the package an Unreal, Unity or native consumer
-  reads; writing that consumer is downstream work, and no vendor layer is included until
+- No engine-side importer, and no geometry in the packages it would read. `engine-bridge` defines
+  the format and builds the semantic half from the viewer contracts; mesh payloads need a
+  fragments exporter, and the consumer that reads them is downstream work. No vendor layer until
   FragmentsUnreal is public.
 - No web or desktop application shell.
 - No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.

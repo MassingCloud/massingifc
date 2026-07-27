@@ -22,6 +22,9 @@
     },
     {
       "path": "../interop/tsconfig.json"
+    },
+    {
+      "path": "../viewer-runtime/tsconfig.json"
     }
   ]
 }

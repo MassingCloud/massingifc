@@ -11,7 +11,6 @@ export {
   type PointPair,
 } from "./alignment.js";
 export {
-  isMeasurable,
   isRealityKind,
   measurabilityIssue,
   validateRealityDataset,
