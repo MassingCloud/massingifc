@@ -82,7 +82,7 @@ npm install
 npm test
 ```
 
-612 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
+654 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
@@ -195,7 +195,8 @@ Properties worth knowing:
 - **Closing over unsaved work fails** unless forced. Discarding a user's edits to satisfy an
   `open()` call is not a trade the kernel makes on their behalf.
 - **Format is an adapter.** `StorageContainerAdapter` ships as a working reference; a file-backed
-  `.mmproj` and an ISO 21597 adapter implement the same `ContainerAdapter` interface.
+  `.mass` (`.mmproj` still readable) and an ISO 21597 adapter implement the same `ContainerAdapter`
+  interface.
 - **The kernel does not legislate how many models a container holds.** Single-model authoring and
   federated coordination are both legitimate; that is a product decision, not a backbone one.
 

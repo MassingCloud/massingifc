@@ -20,12 +20,15 @@
     "@massingifc/plugin-sdk": "0.1.0",
     "@massingifc/project-schema": "0.1.0",
     "@massingifc/viewer-runtime": "0.1.0",
-    "@thatopen/components": "^3.4.8",
-    "@thatopen/fragments": "^3.4.7",
-    "three": "^0.184.0"
+    "@thatopen/components": "3.4.8",
+    "@thatopen/fragments": "3.4.7",
+    "three": "0.184.0"
   },
   "devDependencies": {
     "@types/three": "^0.184.1"
   },
-  "scripts": { "build": "tsc --build", "typecheck": "tsc --noEmit" }
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --noEmit"
+  }
 }

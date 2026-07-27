@@ -58,14 +58,33 @@ export function createCountingIdFactory(): IdFactory {
 export function createUuidIdFactory(): IdFactory {
   // Reached through `globalThis` rather than the bare `crypto` binding: this package targets
   // browsers, Node and workers alike, and only the DOM lib declares the global.
-  const host = globalThis as { crypto?: { randomUUID?: () => string } };
+  const host = globalThis as {
+    crypto?: { randomUUID?: () => string; getRandomValues?: (a: Uint8Array) => Uint8Array };
+  };
   return {
     next(prefix) {
       const randomUUID = host.crypto?.randomUUID;
-      const uuid = randomUUID
-        ? randomUUID.call(host.crypto)
-        : `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
-      return `${prefix}-${uuid}`;
+      if (randomUUID) return `${prefix}-${randomUUID.call(host.crypto)}`;
+
+      // `Math.random()` is seeded, not cryptographic, and `Date.now()` narrows the search space
+      // rather than widening it — CodeQL reports the combination as js/insecure-randomness at high
+      // severity. This is a general-purpose id factory: it cannot know whether a caller will use an
+      // id as an internal key or as a capability (a share link, an invite, a container handle), and
+      // an id that turns out to be a token is unguessable only by accident.
+      const values = host.crypto?.getRandomValues;
+      if (values) {
+        const bytes = values.call(host.crypto, new Uint8Array(16));
+        return `${prefix}-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
+      }
+
+      // Neither API: REFUSE. A weak id is shaped exactly like a strong one, so degrading silently
+      // would be invisible at every call site and discovered only by whatever it failed to protect.
+      // `createCounterIdFactory` is there for anyone who genuinely wants deterministic ids.
+      throw new Error(
+        "createUuidIdFactory: no cryptographic randomness available (crypto.randomUUID and "
+        + "crypto.getRandomValues are both missing). Supply an explicit IdFactory — a predictable "
+        + "id is not a safe default.",
+      );
     },
   };
 }

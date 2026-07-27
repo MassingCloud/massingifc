@@ -106,6 +106,26 @@ describe("takeoff expressions", () => {
     expect(unwrapOk(evaluateExpression("Width * Height", { Width: 0.2, Height: 3 }))).toBeCloseTo(0.6);
   });
 
+  it("an INHERITED property name is an unknown quantity, not a value", () => {
+    // `variables` is a plain object, so `variables["constructor"]` returns Object.prototype's
+    // constructor — a function, not `undefined`. A guard that only checks for `undefined` lets it
+    // through onto the value stack and the expression evaluates to NaN: a silent, confidently wrong
+    // measurement that propagates into the BoQ, the estimate and the cashflow, surfacing far from
+    // the rule that caused it. Reported from a downstream adoption where the same bug class had
+    // already been hit in an icon lookup.
+    for (const name of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
+      const result = evaluateExpression(`Width * ${name}`, { Width: 3 });
+      expect(result.ok, name).toBe(false);
+      expect(result.ok === false && result.error.message, name).toContain(name);
+    }
+  });
+
+  it("a non-finite quantity is refused rather than propagated", () => {
+    // `Record<string, number>` cannot stop NaN or Infinity arriving across a JSON boundary.
+    expect(evaluateExpression("Width * 2", { Width: Number.NaN }).ok).toBe(false);
+    expect(evaluateExpression("Width * 2", { Width: Number.POSITIVE_INFINITY }).ok).toBe(false);
+  });
+
   it("reports an unknown quantity rather than treating it as zero", () => {
     const result = evaluateExpression("Depth * 2", { Width: 1 });
     // Zero would be a confident, wrong measurement.

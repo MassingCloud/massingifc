@@ -1,7 +1,7 @@
 import { toDisposable, type Disposable } from "./disposable.js";
 import { KernelError } from "./errors.js";
 import type { Identity, PermissionService } from "./permissions.js";
-import { attemptAsync, err, ok, type Result } from "./result.js";
+import { attemptAsync, err, type Result } from "./result.js";
 import { NOOP_TELEMETRY, type TelemetrySink } from "./telemetry.js";
 
 export interface CommandInvocation<P = unknown> {
