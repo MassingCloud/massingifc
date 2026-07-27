@@ -13,6 +13,10 @@ import { defineConfig } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./packages/viewer-thatopen/e2e",
+  // Point Playwright at a plain tsconfig. Its module-resolution hook loads tsconfigs for path
+  // mapping and cannot resolve the root solution file's directory-style `references`, which fails
+  // on Node 22 where the hook is active. Naming a simple one sidesteps the walk entirely.
+  tsconfig: "./packages/viewer-thatopen/e2e/tsconfig.json",
   testMatch: "**/*.spec.mjs",
   // A viewer that hangs should fail rather than stall the run.
   timeout: 60_000,
