@@ -51,16 +51,25 @@ export interface ViewerScenePackageOptions {
 }
 
 /** IFC classes that denote a storey, used to stamp `levelGlobalId` down the tree. */
-const STOREY_CLASSES = new Set(["IFCBUILDINGSTOREY", "IFCBUILDINGSTOREYCOMMON"]);
+const STOREY_CLASSES = new Set(["IFCBUILDINGSTOREY"]);
 
 interface Walked {
   readonly nodes: SceneNode[];
   readonly relationships: SceneRelationship[];
+  /**
+   * Which model each node came from.
+   *
+   * A `SceneNode` deliberately carries no model id — a GlobalId is unique across a project, so
+   * consumers have no use for one. The export path does: property lookups go back to the viewer,
+   * which answers per model, and asking the wrong model returns nothing at all.
+   */
+  readonly origin: Map<string, Id>;
 }
 
 function walk(root: SpatialTreeNode, modelIds: ReadonlySet<Id>): Walked {
   const nodes: SceneNode[] = [];
   const relationships: SceneRelationship[] = [];
+  const origin = new Map<string, Id>();
   const seen = new Set<string>();
 
   const visit = (
@@ -75,12 +84,14 @@ function walk(root: SpatialTreeNode, modelIds: ReadonlySet<Id>): Walked {
     // A tree node without an element is a grouping the viewer invented — a federation root, a
     // discipline folder. It has no GlobalId, so it cannot be a scene node, but its children still
     // belong to whatever real parent sits above it.
-    if (globalId !== undefined && (node.element === undefined || modelIds.has(node.element.modelId))) {
+    const owner = node.element?.modelId;
+    if (globalId !== undefined && owner !== undefined && modelIds.has(owner)) {
       const ifcClass = node.ifcClass?.toUpperCase();
       if (ifcClass !== undefined && STOREY_CLASSES.has(ifcClass)) nextLevel = globalId;
 
       if (!seen.has(globalId)) {
         seen.add(globalId);
+        origin.set(globalId, owner);
         nodes.push({
           globalId,
           ...(node.label === undefined ? {} : { name: node.label }),
@@ -103,7 +114,7 @@ function walk(root: SpatialTreeNode, modelIds: ReadonlySet<Id>): Walked {
   };
 
   visit(root, undefined, undefined);
-  return { nodes, relationships };
+  return { nodes, relationships, origin };
 }
 
 const isScalar = (value: unknown): value is string | number | boolean | null =>
@@ -149,6 +160,7 @@ export function createViewerScenePackageProvider(
       const modelIds = new Set(models.map((model) => model.id));
       const nodes: SceneNode[] = [];
       const relationships: SceneRelationship[] = [];
+      const origin = new Map<string, Id>();
 
       for (const model of models) {
         if (request.signal?.aborted === true) {
@@ -159,12 +171,18 @@ export function createViewerScenePackageProvider(
         const walked = walk(built.value, modelIds);
         nodes.push(...walked.nodes);
         relationships.push(...walked.relationships);
+        for (const [globalId, owner] of walked.origin) origin.set(globalId, owner);
       }
 
       let properties: Record<string, readonly ScenePropertySet[]> | undefined;
       if (request.includeProperties === true && nodes.length > 0) {
         const resolved = await options.properties.getMany(
-          nodes.map((node) => ({ modelId: models[0]!.id, globalId: node.globalId })),
+          // Each node is asked of the model it came from. Using one model for all of them loses
+          // every property in a federated scope, silently, because the ids do not resolve there.
+          nodes.map((node) => ({
+            modelId: origin.get(node.globalId) ?? models[0]!.id,
+            globalId: node.globalId,
+          })),
         );
         if (!resolved.ok) return err(resolved.error);
         properties = {};

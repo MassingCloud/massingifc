@@ -2,6 +2,7 @@ import { err, KernelError, ok, type Result } from "@massingifc/core-kernel";
 import type { ElementRef, Id } from "@massingifc/project-schema";
 import type { ElementProperties, PropertyService } from "@massingifc/viewer-runtime";
 import {
+  alignItems,
   attributeOf,
   relationOf,
   stringAttribute,
@@ -63,16 +64,28 @@ export class ThatOpenProperties implements PropertyService {
           .filter((entry): entry is { globalId: string; localId: number } => entry.localId !== null);
         if (resolved.length === 0) continue;
 
-        const data = await model.getItemsData(
-          resolved.map((entry) => entry.localId),
-          PROPERTY_SET_CONFIG,
-        );
+        const requested = resolved.map((entry) => entry.localId);
+        const data = await model.getItemsData(requested, PROPERTY_SET_CONFIG);
+        const items = alignItems(requested, data);
+        if (!items) {
+          // Reporting one element's properties under another element's id is worse than returning
+          // nothing, because nothing downstream can tell it happened.
+          return err(
+            new KernelError(
+              "COMMAND_FAILED",
+              `Model "${modelId}" returned ${data.length} records for ${requested.length} elements, and they cannot be matched to the elements that were asked for.`,
+              { modelId },
+            ),
+          );
+        }
 
-        data.forEach((item, index) => {
-          const entry = resolved[index];
-          if (!entry) return;
-          results.push(toElementProperties({ modelId, globalId: entry.globalId, localId: entry.localId }, item));
-        });
+        for (const entry of resolved) {
+          const item = items.get(entry.localId);
+          if (item === undefined) continue;
+          results.push(
+            toElementProperties({ modelId, globalId: entry.globalId, localId: entry.localId }, item),
+          );
+        }
       } catch (thrown) {
         return err(
           new KernelError("COMMAND_FAILED", "Failed to read properties.", { modelId }, { cause: thrown }),
@@ -83,12 +96,8 @@ export class ThatOpenProperties implements PropertyService {
     return ok(results);
   }
 
-  async find(query: {
-    readonly modelId?: Id;
-    readonly ifcClass?: string;
-    readonly text?: string;
-    readonly property?: { readonly name: string; readonly value?: unknown };
-  }): Promise<Result<readonly ElementRef[]>> {
+  // Takes the contract's own parameter type so the two cannot drift apart.
+  async find(query: PropertyQuery): Promise<Result<readonly ElementRef[]>> {
     const modelId = query.modelId;
     if (modelId === undefined) {
       return err(
@@ -107,11 +116,19 @@ export class ThatOpenProperties implements PropertyService {
       if (localIds.length === 0) return ok([]);
 
       const needsData = query.text !== undefined || query.property !== undefined;
-      const matched = needsData
-        ? await filterByData(model, localIds, query)
-        : localIds;
+      if (!needsData) return toRefs(model, modelId, localIds);
 
-      return toRefs(model, modelId, matched);
+      // Read in chunks rather than one call over every candidate. An unfiltered text search on a
+      // federated model would otherwise pull the entire property database across the worker
+      // boundary into a single array before filtering any of it.
+      const matched: number[] = [];
+      for (let start = 0; start < localIds.length; start += SEARCH_CHUNK) {
+        const chunk = localIds.slice(start, start + SEARCH_CHUNK);
+        matched.push(...(await filterByData(model, chunk, query)));
+        if (matched.length >= (query.limit ?? DEFAULT_SEARCH_LIMIT)) break;
+      }
+
+      return toRefs(model, modelId, matched.slice(0, query.limit ?? DEFAULT_SEARCH_LIMIT));
     } catch (thrown) {
       return err(
         new KernelError("COMMAND_FAILED", "Property search failed.", { modelId }, { cause: thrown }),
@@ -119,6 +136,14 @@ export class ThatOpenProperties implements PropertyService {
     }
   }
 }
+
+type PropertyQuery = Parameters<PropertyService["find"]>[0];
+
+/** Candidates read per round trip. Bounds peak memory without making the search chatty. */
+const SEARCH_CHUNK = 500;
+
+/** Ceiling when the caller names none. A result set larger than this is a filter, not a search. */
+const DEFAULT_SEARCH_LIMIT = 1000;
 
 const notLoaded = (modelId: Id): KernelError =>
   new KernelError("COMMAND_FAILED", `Model "${modelId}" is not loaded.`, { modelId });
@@ -149,10 +174,16 @@ async function filterByData(
   },
 ): Promise<readonly number[]> {
   const data = await model.getItemsData([...localIds], PROPERTY_SET_CONFIG);
+  const items = alignItems(localIds, data);
+  if (!items) {
+    // A search that cannot trust which record belongs to which element returns nothing rather
+    // than a plausible-looking list of the wrong elements.
+    return [];
+  }
   const needle = query.text?.toLowerCase();
 
-  return localIds.filter((localId, index) => {
-    const item = data[index];
+  return localIds.filter((localId) => {
+    const item = items.get(localId);
     if (!item) return false;
 
     if (needle !== undefined) {

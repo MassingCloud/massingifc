@@ -4,6 +4,7 @@ import {
   createSceneQuery,
   payloadPath,
   readScenePackage,
+  safePayloadPath,
   validateScenePackage,
   writeScenePackage,
   SCENE_FORMAT_VERSION,
@@ -288,5 +289,113 @@ describe("scene queries", () => {
     // Present for debugging, never a key: nothing in the index or the queries uses it.
     expect(query.node(WALL.globalId)?.transientLocalId).toBe(4172);
     expect(Object.keys(scene.index.byGlobalId)).not.toContain("4172");
+  });
+});
+
+describe("regressions", () => {
+  it("restates the georeference in metres alongside the coordinates", () => {
+    const scene = built({
+      sourceUnits: "mm",
+      geoReference: {
+        sourceCrs: "EPSG:27700",
+        units: "mm",
+        originOffset: [530_000_000, 180_000_000, 0],
+        accuracy: { horizontal: 0.02 },
+      },
+      nodes: [{ ...WALL, transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3000, 1500, 0, 1] }],
+    });
+
+    // A consumer computes world = local + originOffset. Converting one side and not the other puts
+    // the model a factor of a thousand from where it belongs.
+    expect(scene.nodes[0]?.transform?.[12]).toBe(3);
+    expect(scene.geoReference?.units).toBe("m");
+    expect(scene.geoReference?.originOffset).toEqual([530_000, 180_000, 0]);
+    // Accuracy is documented in metres whatever `units` says, so it must not be scaled.
+    expect(scene.geoReference?.accuracy?.horizontal).toBe(0.02);
+  });
+
+  it("converts the georeference by its own units, not the model's", () => {
+    const scene = built({
+      sourceUnits: "mm",
+      geoReference: { sourceCrs: "EPSG:27700", units: "m", originOffset: [530_000, 180_000, 0] },
+      nodes: [WALL],
+    });
+    expect(scene.geoReference?.originOffset).toEqual([530_000, 180_000, 0]);
+  });
+
+  it("refuses a manifest whose index would crash the first query", async () => {
+    const archive = new MemoryArchive();
+    await archive.write(
+      SCENE_MANIFEST_PATH,
+      new TextEncoder().encode(JSON.stringify({ ...built(), index: {} })),
+    );
+    const read = await readScenePackage(archive);
+    expect(read.ok).toBe(false);
+    if (!read.ok) expect(read.error.message).toMatch(/no usable index/);
+  });
+
+  it("rejects payload paths that climb out of the package", () => {
+    expect(safePayloadPath("payloads/geometry-0.glb")).toBe("payloads/geometry-0.glb");
+    expect(safePayloadPath("./payloads/a.bin")).toBe("payloads/a.bin");
+    expect(safePayloadPath("payloads\\a.bin")).toBe("payloads/a.bin");
+    for (const escaping of [
+      "../../../.ssh/id_rsa",
+      "payloads/../../secret",
+      "/etc/passwd",
+      "C:/Windows/System32/config",
+      "",
+      "payloads//a.bin",
+    ]) {
+      expect(safePayloadPath(escaping)).toBeUndefined();
+    }
+  });
+
+  it("refuses to write a payload that declares an escaping path", async () => {
+    const scene = built({
+      payloads: [
+        {
+          id: "geometry-0",
+          role: "geometry",
+          path: "../../../evil.bin",
+          encoding: "application/octet-stream",
+          byteLength: 4,
+        },
+      ],
+      nodes: [STOREY],
+    });
+    const archive = new MemoryArchive();
+    const result = await writeScenePackage(archive, scene, {
+      payloads: new Map([["geometry-0", new Uint8Array([1, 2, 3, 4])]]),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(archive.files.size).toBe(0);
+  });
+
+  it("does not follow an escaping path on read", async () => {
+    const archive = new MemoryArchive();
+    archive.files.set("../../../evil.bin", new Uint8Array([9]));
+    await archive.write(
+      SCENE_MANIFEST_PATH,
+      new TextEncoder().encode(
+        JSON.stringify({
+          ...built({ nodes: [STOREY] }),
+          payloads: [
+            {
+              id: "p",
+              role: "geometry",
+              path: "../../../evil.bin",
+              encoding: "application/octet-stream",
+              byteLength: 1,
+            },
+          ],
+        }),
+      ),
+    );
+
+    const read = await readScenePackage(archive);
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(await read.value.readPayload("p")).toBeUndefined();
   });
 });

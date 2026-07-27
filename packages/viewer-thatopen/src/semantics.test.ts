@@ -317,3 +317,100 @@ describe("spatial tree", () => {
     expect(root.label).toBe("Item");
   });
 });
+
+describe("result pairing", () => {
+  // A model that omits items it has no data for. The port permits this shape and the engine is
+  // not documented to exclude it, so the code must not assume one entry per id in order.
+  const omitting = (skip: number) =>
+    fakeModel({
+      getItemsData: async (ids) =>
+        ids.filter((id) => id !== skip).map((id) => ({ ...ITEMS[id], _localId: { value: id } })),
+    });
+
+  it("never attributes one element's data to another", async () => {
+    const properties = new ThatOpenProperties(source(omitting(1)));
+    const results = unwrap(
+      await properties.getMany([ref("0Level00000000000000L1"), ref("1Wall00000000000000W01")]),
+    );
+
+    // The storey was skipped by the model. It must be absent, not filled in with the wall's data.
+    expect(results.map((entry) => entry.element.globalId)).toEqual(["1Wall00000000000000W01"]);
+    expect(results[0]?.name).toBe("External wall");
+  });
+
+  it("matches by the item's own id even when the order changes", async () => {
+    const shuffled = fakeModel({
+      getItemsData: async (ids) =>
+        [...ids].reverse().map((id) => ({ ...ITEMS[id], _localId: { value: id } })),
+    });
+    const results = unwrap(
+      await new ThatOpenProperties(source(shuffled)).getMany([
+        ref("0Level00000000000000L1"),
+        ref("1Wall00000000000000W01"),
+      ]),
+    );
+
+    for (const entry of results) {
+      const expected = entry.element.globalId === "1Wall00000000000000W01" ? "External wall" : "Level 1";
+      expect(entry.name).toBe(expected);
+    }
+  });
+
+  it("fails loudly when results can be neither matched nor positionally trusted", async () => {
+    const opaque = fakeModel({
+      // No self-identification and a count that does not line up: nothing can be inferred.
+      getItemsData: async () => [{ Name: { value: "mystery" } }],
+    });
+    const result = await new ThatOpenProperties(source(opaque)).getMany([
+      ref("0Level00000000000000L1"),
+      ref("1Wall00000000000000W01"),
+    ]);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.message).toMatch(/cannot be matched/);
+  });
+
+  it("still works with a fake that self-identifies nothing but counts correctly", async () => {
+    // The positional fallback: enough for a hand-written double, never a silent mispairing.
+    const results = unwrap(
+      await new ThatOpenProperties(source()).getMany([ref("1Wall00000000000000W01")]),
+    );
+    expect(results[0]?.name).toBe("External wall");
+  });
+});
+
+describe("search bounds", () => {
+  it("reads candidates in chunks rather than the whole model at once", async () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 1200 }, (_, index) => [
+        index + 100,
+        { _category: { value: "IFCWALLSTANDARDCASE" }, Name: { value: `wall-${index}` } },
+      ]),
+    );
+    const big = fakeModel({
+      getItemsOfCategories: async () => ({ IFCWALLSTANDARDCASE: Object.keys(many).map(Number) }),
+      getItemsData: async (ids) => ids.map((id) => ({ ...many[id], _localId: { value: id } })),
+      getGuidsByLocalIds: async (ids) => ids.map((id) => `guid-${id}`),
+    });
+    const sizes: number[] = [];
+    const spied = { ...big, getItemsData: async (ids: number[], config?: unknown) => {
+      sizes.push(ids.length);
+      return big.getItemsData(ids, config);
+    } };
+
+    const found = unwrap(
+      await new ThatOpenProperties(source(spied)).find({ modelId: "struct", text: "wall" }),
+    );
+
+    // Never one call over every candidate — that is the whole property database in one array.
+    expect(Math.max(...sizes)).toBeLessThanOrEqual(500);
+    expect(found.length).toBeLessThanOrEqual(1000);
+  });
+
+  it("honours an explicit limit", async () => {
+    const found = unwrap(
+      await new ThatOpenProperties(source()).find({ modelId: "struct", text: "wall", limit: 1 }),
+    );
+    expect(found).toHaveLength(1);
+  });
+});

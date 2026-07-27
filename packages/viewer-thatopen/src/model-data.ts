@@ -36,6 +36,55 @@ export interface FragmentItemData {
 }
 
 /**
+ * The local id an item reports for itself.
+ *
+ * Fragments stamps `_localId`, `_guid` and `_category` onto every item it returns, which means
+ * results can be matched to requests by identity rather than by array position. That matters:
+ * positional matching is correct only while the engine returns exactly one entry per id in order,
+ * and when it stops doing so nothing fails — one element is simply reported with another's data.
+ */
+export function localIdOf(item: FragmentItemData): number | undefined {
+  const value = attributeOf(item, "_localId");
+  return typeof value === "number" ? value : undefined;
+}
+
+export function guidOf(item: FragmentItemData): string | undefined {
+  return stringAttribute(item, "_guid");
+}
+
+/**
+ * Matches returned item data back to the ids that were requested.
+ *
+ * Prefers each item's own `_localId`. Falls back to position only when nothing self-identifies and
+ * the counts line up exactly — enough for a hand-written fake — and returns `undefined` rather than
+ * guessing when neither holds, so the caller reports a failure instead of silently mispairing.
+ */
+export function alignItems(
+  localIds: readonly number[],
+  data: readonly FragmentItemData[],
+): ReadonlyMap<number, FragmentItemData> | undefined {
+  const byLocalId = new Map<number, FragmentItemData>();
+  let selfIdentified = 0;
+
+  for (const item of data) {
+    const localId = localIdOf(item);
+    if (localId !== undefined) {
+      byLocalId.set(localId, item);
+      selfIdentified++;
+    }
+  }
+
+  if (selfIdentified > 0) return byLocalId;
+  if (data.length !== localIds.length) return undefined;
+
+  localIds.forEach((localId, index) => {
+    const item = data[index];
+    if (item !== undefined) byLocalId.set(localId, item);
+  });
+  return byLocalId;
+}
+
+/**
  * Narrows a real fragments model to the port.
  *
  * The cast is free at runtime; the point is the compiler. A hand-written port that tests satisfy

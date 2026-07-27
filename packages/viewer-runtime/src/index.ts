@@ -121,6 +121,14 @@ export interface PropertyService {
     readonly ifcClass?: string;
     readonly text?: string;
     readonly property?: { readonly name: string; readonly value?: unknown };
+    /**
+     * Maximum hits to return.
+     *
+     * Optional but not decorative: an unbounded search over a federated model can match hundreds
+     * of thousands of elements, and an implementation with no ceiling has to read all of them
+     * before it can answer at all.
+     */
+    readonly limit?: number;
   }): Promise<Result<readonly ElementRef[]>>;
 }
 

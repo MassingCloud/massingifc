@@ -56,6 +56,40 @@ function scaleBounds(bounds: SceneBounds, factor: number): SceneBounds {
   ];
 }
 
+/**
+ * Restates a georeference in metres.
+ *
+ * The package promises metres throughout, and `originOffset` is a coordinate — a consumer computes
+ * `world = local + originOffset`, so leaving the offset in the source unit while converting the
+ * geometry puts the model a factor of a thousand away from where it belongs. The CRS, datum and
+ * true-north angle are unit-free and pass through untouched.
+ */
+function toMetres(geo: GeoReference): GeoReference {
+  // Converted by the georeference's own units, not the model's. The two are independent: a model
+  // authored in millimetres can carry a georeference already stated in metres, and scaling by the
+  // wrong one is exactly the mistake this function exists to prevent.
+  const factor = convertLength(1, geo.units, "m");
+  if (factor === 1) return geo;
+
+  const offset = geo.originOffset;
+  const local = geo.localToGlobal;
+  return {
+    ...geo,
+    units: "m",
+    // `accuracy` is documented in metres regardless of `units`, so it is deliberately not scaled.
+    ...(offset === undefined
+      ? {}
+      : { originOffset: [offset[0] * factor, offset[1] * factor, offset[2] * factor] }),
+    ...(local === undefined
+      ? {}
+      : {
+          localToGlobal: local.map((value, index) =>
+            index >= 12 && index <= 14 ? value * factor : value,
+          ),
+        }),
+  };
+}
+
 function buildIndex(nodes: readonly SceneNode[]): SceneIndex {
   const byClass: Record<string, number[]> = {};
   const byLevel: Record<string, number[]> = {};
@@ -115,7 +149,7 @@ export function buildScenePackage(input: ScenePackageInput): Result<ScenePackage
     sources: input.sources ?? [],
     units: "m",
     ...(input.sourceUnits === undefined ? {} : { sourceUnits: input.sourceUnits }),
-    ...(input.geoReference === undefined ? {} : { geoReference: input.geoReference }),
+    ...(input.geoReference === undefined ? {} : { geoReference: toMetres(input.geoReference) }),
     payloads: input.payloads ?? [],
     nodes,
     ...(input.materials === undefined ? {} : { materials: input.materials }),

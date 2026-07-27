@@ -23,6 +23,29 @@ export interface SceneArchive {
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: false });
 
+/**
+ * Normalises a package-relative path and refuses any that escapes the package.
+ *
+ * Paths in a manifest are file *content*, not caller input, and a package can arrive from anywhere.
+ * A declared path of `../../../.ssh/id_rsa` handed to a filesystem-backed archive reads — or on
+ * write, clobbers — a file outside the package. The ICDD container normalises every entry path for
+ * the same reason; there is no case where a payload legitimately lives outside its own package.
+ */
+export function safePayloadPath(path: string): string | undefined {
+  const normalised = path.replace(/\\/g, "/");
+  // Absoluteness is checked before any stripping. Removing a leading slash first would quietly
+  // turn "/etc/passwd" into a package-relative path and read a different file than was asked for,
+  // which is a worse answer than refusing.
+  if (normalised.length === 0 || normalised.startsWith("/") || /^[A-Za-z]:/.test(normalised)) {
+    return undefined;
+  }
+  const segments = normalised.replace(/^\.\//, "").split("/");
+  if (segments.some((segment) => segment === ".." || segment === "." || segment.length === 0)) {
+    return undefined;
+  }
+  return segments.join("/");
+}
+
 export function payloadPath(payloadId: string, extension = "bin"): string {
   // Payload ids come from exporters and can carry characters that are legal in JSON and illegal in
   // a file name; percent-encoding everything outside a conservative set keeps the mapping total.
@@ -78,7 +101,16 @@ export async function writeScenePackage(
         ),
       );
     }
-    await archive.write(payload.path, bytes);
+    const path = safePayloadPath(payload.path);
+    if (path === undefined) {
+      return err(
+        new KernelError("COMMAND_FAILED", `Payload "${payload.id}" declares a path outside the package.`, {
+          payloadId: payload.id,
+          path: payload.path,
+        }),
+      );
+    }
+    await archive.write(path, bytes);
   }
 
   await archive.write(SCENE_MANIFEST_PATH, encoder.encode(JSON.stringify(scene, undefined, 2)));
@@ -88,6 +120,14 @@ export async function writeScenePackage(
 export interface ReadSceneResult {
   readonly scene: ScenePackage;
   readPayload(payloadId: string): Promise<Uint8Array | undefined>;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+function isIndex(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return ["byClass", "byLevel", "byGlobalId"].every((key) => isRecord(value[key]));
 }
 
 const majorOf = (version: string): string => version.split(".")[0] ?? version;
@@ -136,8 +176,17 @@ export async function readScenePackage(archive: SceneArchive): Promise<Result<Re
       ),
     );
   }
-  if (!Array.isArray(scene.nodes) || typeof scene.index !== "object" || scene.index === null) {
-    return err(new KernelError("COMMAND_FAILED", "Scene manifest is missing nodes or index.", {}));
+  if (!Array.isArray(scene.nodes)) {
+    return err(new KernelError("COMMAND_FAILED", "Scene manifest is missing its nodes.", {}));
+  }
+  if (!isIndex(scene.index)) {
+    // Checked in full because consumers read `index.byGlobalId` without guarding: an index that
+    // merely exists lets the reader return `ok` and the first query throw.
+    return err(
+      new KernelError("COMMAND_FAILED", "Scene manifest has no usable index.", {
+        index: typeof scene.index,
+      }),
+    );
   }
 
   const byId = new Map(scene.payloads?.map((payload) => [payload.id, payload]) ?? []);
@@ -145,7 +194,10 @@ export async function readScenePackage(archive: SceneArchive): Promise<Result<Re
     scene,
     async readPayload(payloadId) {
       const payload = byId.get(payloadId);
-      return payload === undefined ? undefined : archive.read(payload.path);
+      if (payload === undefined) return undefined;
+      const path = safePayloadPath(payload.path);
+      // A manifest is file content, not caller input. An escaping path is refused, not followed.
+      return path === undefined ? undefined : archive.read(path);
     },
   });
 }

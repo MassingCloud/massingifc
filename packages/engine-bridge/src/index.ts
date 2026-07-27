@@ -12,6 +12,7 @@ export {
 } from "./build.js";
 export {
   payloadPath,
+  safePayloadPath,
   readScenePackage,
   writeScenePackage,
   type ReadSceneResult,
