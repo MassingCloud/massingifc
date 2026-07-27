@@ -64,3 +64,20 @@ jobs:
       # than looking like the code broke.
       - name: Audit
         run: npm audit --audit-level=high
+
+  browser:
+    name: Browser smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      # Its own job because it is minutes rather than seconds: Vite pre-bundles three and the
+      # engine on a cold cache. Keeping it out of `verify` leaves the fast feedback loop fast.
+      - name: Boot the viewer against real WebGL
+        run: npm run test:browser

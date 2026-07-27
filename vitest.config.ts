@@ -32,6 +32,7 @@ export default defineConfig({
       "@massingifc/viewer-runtime": pkg("viewer-runtime"),
       "@massingifc/viewer-thatopen": pkg("viewer-thatopen"),
       "@massingifc/storage-node": pkg("storage-node"),
+      "@massingifc/storage-browser": pkg("storage-browser"),
     },
   },
   test: {

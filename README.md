@@ -67,6 +67,7 @@ working product.
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
 | `viewer-thatopen` | **Implemented** | That Open Components adapter — world bootstrap, FragmentsManager lifecycle, GlobalId resolution. The one package with third-party runtime dependencies |
 | `storage-node` | **Implemented** | Filesystem persistence: atomic writes, path-escape refusal, binary payloads |
+| `storage-browser` | **Implemented** | IndexedDB persistence: native binary, bounded prefix queries, durable transactions |
 
 "Contracts" means compiling TypeScript interfaces, capability tokens, command ids and permission
 constants — no runtime implementation yet.
@@ -81,7 +82,7 @@ npm install
 npm test
 ```
 
-593 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
+612 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
@@ -93,6 +94,13 @@ npm run verify
 ```
 
 `verify` is what CI runs: architecture invariants, then build and typecheck, then tests.
+
+```bash
+npm run test:browser
+```
+
+Boots the viewer in headless Chromium against real WebGL. Kept out of `npm test` because it takes
+minutes rather than seconds — Vite pre-bundles `three` and the engine on a cold cache.
 
 ### Enforced invariants
 
@@ -325,15 +333,13 @@ Stated plainly:
 - `viewer-runtime` is contracts by design — it is the interface. `viewer-thatopen` implements it
   against That Open Components and is the **only** package with runtime dependencies, which is
   precisely what keeps the other sixteen dependency-free.
-- The renderer itself is not covered by tests: it needs WebGL. What is covered headlessly is
-  everything that decides correctness rather than pixels — the update-coalescing policy, the
-  pixel-ratio governor, and the selection boundary where engine ids become GlobalIds. The engine
-  usage is validated by typechecking against the published `.d.ts` under `strict`. `ui-shell` ships the *bookkeeping* half of a shell — which panels
+- The renderer is covered by a Playwright smoke test (`npm run test:browser`) that boots the real
+  engine against a real WebGL context and asserts the world builds and disposal releases. Rendered
+  *output* is still not asserted — no screenshot comparison — so a change that renders the wrong
+  thing without erroring would pass. `ui-shell` ships the *bookkeeping* half of a shell — which panels
   exist, which are open, what the layout was — and leaves rendering to the host.
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.
 - No web or desktop application shell.
-- No IndexedDB adapter yet, so browser hosts still persist only in memory. `storage-node`
-  covers desktop and server hosts against the same `StorageAdapter` interface.
 - No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.
 - No migrations exist yet; every schema sits at v1.

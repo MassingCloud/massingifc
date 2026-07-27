@@ -18,11 +18,14 @@
     "build": "node node_modules/typescript/lib/tsc.js --build",
     "clean": "node node_modules/typescript/lib/tsc.js --build --clean",
     "check:architecture": "node scripts/check-architecture.mjs",
-    "verify": "npm run check:architecture && npm run typecheck && npm test"
+    "verify": "npm run check:architecture && npm run typecheck && npm test",
+    "test:browser": "playwright test --config playwright.config.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@types/node": "^26.1.1",
     "typescript": "7.0.2",
+    "vite": "^6.4.3",
     "vitest": "3.2.7"
   }
 }

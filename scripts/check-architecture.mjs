@@ -25,6 +25,7 @@ const ADAPTER = "@massingifc/viewer-thatopen";
 const PLATFORM_ADAPTERS = new Map([
   ["@massingifc/viewer-thatopen", [/^three(\/|$)/, /^@thatopen\//]],
   ["@massingifc/storage-node", [/^node:/]],
+  ["@massingifc/storage-browser", []], // browser globals only; no bare imports needed
 ]);
 
 /** The kernel must depend on nothing at all — not even a sibling. */
