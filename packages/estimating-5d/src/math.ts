@@ -212,8 +212,15 @@ export function evaluateExpression(
       continue;
     }
     if (token.kind === "name") {
-      const value = variables[token.value];
-      if (value === undefined) {
+      // OWN properties only. `variables` is a plain object, so it inherits from Object.prototype:
+      // a rule naming `constructor`, `toString`, `valueOf`, `hasOwnProperty` or `__proto__` resolves
+      // to an inherited member, which is not `undefined`, sails past the guard below and lands a
+      // function on the value stack — producing a silent NaN through the whole estimate rather than
+      // the named error this branch exists to raise. `typeof`/`isFinite` also cover a non-numeric or
+      // NaN quantity arriving through the `Record<string, number>` type at a JSON boundary.
+      const own = Object.prototype.hasOwnProperty.call(variables, token.value);
+      const value = own ? variables[token.value] : undefined;
+      if (!own || typeof value !== "number" || !Number.isFinite(value)) {
         // Naming a quantity the element does not carry is a rule authoring error, and silently
         // treating it as zero would produce a confident, wrong measurement.
         return err(
