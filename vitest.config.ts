@@ -29,6 +29,8 @@ export default defineConfig({
       "@massingifc/analytics": pkg("analytics"),
       "@massingifc/ui-shell": pkg("ui-shell"),
       "@massingifc/authoring": pkg("authoring"),
+      "@massingifc/viewer-runtime": pkg("viewer-runtime"),
+      "@massingifc/viewer-thatopen": pkg("viewer-thatopen"),
     },
   },
   test: {

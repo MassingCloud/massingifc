@@ -65,6 +65,7 @@ working product.
 | `ui-shell` | **Implemented** | Headless reference shell: layout, notifications, progress, palette, status bar |
 | `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
+| `viewer-thatopen` | **Implemented** | That Open Components adapter — world bootstrap, FragmentsManager lifecycle, GlobalId resolution. The one package with runtime dependencies |
 
 "Contracts" means compiling TypeScript interfaces, capability tokens, command ids and permission
 constants — no runtime implementation yet.
@@ -79,15 +80,15 @@ npm install
 npm test
 ```
 
-557 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
+569 tests, including a cross-plugin integration suite that runs all seven capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
 npm run build
 ```
 
-Requires **Node 20 or newer**. This repository has **no runtime dependencies** — only TypeScript
-and Vitest as dev tooling.
+Requires **Node 20 or newer**. Every package except `viewer-thatopen` has **no runtime
+dependencies** — that adapter carries `three` and `@thatopen/*` so the other sixteen do not.
 
 Two toolchain notes worth knowing:
 
@@ -306,8 +307,13 @@ loading — so adoption is implementing an interface over existing code, not rew
 Stated plainly:
 
 - No viewer implementation, no `three`/`@thatopen` integration.
-- `viewer-runtime` remains contracts only: it needs a renderer, and the core packages have no
-  runtime dependencies. Everything else is implemented. `ui-shell` ships the *bookkeeping* half of a shell — which panels
+- `viewer-runtime` is contracts by design — it is the interface. `viewer-thatopen` implements it
+  against That Open Components and is the **only** package with runtime dependencies, which is
+  precisely what keeps the other sixteen dependency-free.
+- The renderer itself is not covered by tests: it needs WebGL. What is covered headlessly is
+  everything that decides correctness rather than pixels — the update-coalescing policy, the
+  pixel-ratio governor, and the selection boundary where engine ids become GlobalIds. The engine
+  usage is validated by typechecking against the published `.d.ts` under `strict`. `ui-shell` ships the *bookkeeping* half of a shell — which panels
   exist, which are open, what the layout was — and leaves rendering to the host.
   `viewer-runtime` stays contracts deliberately — it needs a renderer, and this repository has no
   runtime dependencies.
