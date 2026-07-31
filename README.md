@@ -469,7 +469,11 @@ Stated plainly:
 - The renderer is covered by a Playwright smoke test (`npm run test:browser`) that boots the real
   engine against a real WebGL context and asserts the world builds and disposal releases. Rendered
   *output* is still not asserted — no screenshot comparison — so a change that renders the wrong
-  thing without erroring would pass. `ui-shell` ships the *bookkeeping* half of a shell — which panels
+  thing without erroring would pass.
+  The dev server is owned by a `globalSetup` rather than Playwright's `webServer` block: on
+  Windows that block does not terminate Vite, so the run hung after its tests had already passed
+  and left an orphan holding the port, which made the *next* run fail with a misleading "already
+  used". `ui-shell` ships the *bookkeeping* half of a shell — which panels
   exist, which are open, what the layout was — and leaves rendering to the host.
 - No engine-side importer, and no geometry in the packages it would read. `engine-bridge` defines
   the format and builds the semantic half from the viewer contracts; mesh payloads need a

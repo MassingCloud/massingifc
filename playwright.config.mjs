@@ -29,13 +29,7 @@ export default defineConfig({
     // Headless Chromium renders WebGL through SwiftShader, so no GPU is needed on a runner.
     launchOptions: { args: ["--enable-unsafe-swiftshader"] },
   },
-  webServer: {
-    // Vite's bin is invoked directly rather than through npx. The npx shim spawns a grandchild
-    // process that Playwright cannot reliably terminate on Windows, which leaves the run hanging
-    // after the tests themselves have already passed.
-    command: "node node_modules/vite/bin/vite.js --config packages/viewer-thatopen/e2e/vite.config.mjs",
-    url: "http://localhost:5199",
-    reuseExistingServer: false,
-    timeout: 120_000,
-  },
+  // The dev server is started and stopped by globalSetup rather than by Playwright's webServer
+  // block, which on Windows leaves the Vite process running after the run and hangs waiting for it.
+  globalSetup: "./packages/viewer-thatopen/e2e/server.mjs",
 });
