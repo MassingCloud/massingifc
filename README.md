@@ -66,7 +66,7 @@ working product.
 | `ui-shell` | **Implemented** | Headless reference shell: layout, notifications, progress, palette, status bar |
 | `integration` | **Tests only** | Cross-plugin suite proving the families compose through the kernel |
 | `viewer-runtime` | Contracts | World, IFC conversion, fragments lifecycle, selection, visibility, tree, viewpoints, sectioning |
-| `viewer-thatopen` | **Implemented** | That Open Components adapter — world bootstrap, FragmentsManager lifecycle, GlobalId resolution, properties with property sets and quantities, spatial tree, property search. The one package with third-party runtime dependencies |
+| `viewer-thatopen` | **Implemented** | That Open Components adapter — implements all eight viewer contracts: world bootstrap, FragmentsManager lifecycle, GlobalId resolution, selection, properties, spatial tree, search, visibility and colour overrides, viewpoints, sectioning. The one package with third-party runtime dependencies |
 | `storage-node` | **Implemented** | Filesystem persistence: reversible key encoding, serialised atomic writes, binary payloads |
 | `storage-browser` | **Implemented** | IndexedDB persistence: native binary, bounded prefix queries, durable transactions |
 
@@ -83,7 +83,7 @@ npm install
 npm test
 ```
 
-760 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
+787 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
@@ -411,13 +411,23 @@ What makes it a BIM contract rather than a mesh dump:
 - **`realityLayers` carry a `measurable` flag,** so a splat arrives in the engine marked as
   something to render, not something to collide with or dimension.
 
-`viewer-thatopen` implements `PropertyService` and `SpatialTreeService` over fragments models, so
+`viewer-thatopen` implements every viewer contract over fragments models, so
 the provider below has a real viewer behind it. Both are testable headlessly — they talk to a
 narrow `FragmentDataModel` port rather than a live model, and `asDataModel` proves **at compile
 time** that the shape a fake satisfies is the shape the real `FragmentsModel` has. A port the
 tests satisfy and the engine does not is worse than no port: every test passes while nothing
 works. Both services batch — one call per model, not one per element — because the fragments
 model answers from a worker and a per-element loop turns a property panel into N round trips.
+
+Two decisions in the override services are worth knowing. `VisibilityService` is synchronous by
+contract while the engine is not, so the override *state* is tracked locally — `hiddenElements()`
+is correct the instant `hide()` returns, not whenever the worker catches up — and engine work is
+pushed through one serial queue. Without that queue, `hide(x)` followed by `show(x)` issues two
+overlapping round trips and whichever finishes last wins, so the element ends up hidden or shown
+depending on scheduling. A viewpoint captures the hidden set and the active section planes
+alongside the camera, because sharing "look at this" is useless if the recipient sees the whole
+model, and it restores scene state *before* moving the camera so the animation does not play
+against the old visibility.
 
 `createViewerScenePackageProvider` builds packages from the `viewer-runtime` contracts — the
 spatial tree and the property service are all it needs, so it works with any viewer and keeps
@@ -461,20 +471,18 @@ loading — so adoption is implementing an interface over existing code, not rew
 
 Stated plainly:
 
-- No visibility, viewpoint or sectioning implementation — three of the eight viewer contracts are
-  still unimplemented in the adapter.
 - `viewer-runtime` is contracts by design — it is the interface. `viewer-thatopen` implements it
   against That Open Components and is the **only** package with runtime dependencies, which is
   precisely what keeps the other seventeen dependency-free.
 - The renderer is covered by a Playwright smoke test (`npm run test:browser`) that boots the real
   engine against a real WebGL context and asserts the world builds and disposal releases. Rendered
   *output* is still not asserted — no screenshot comparison — so a change that renders the wrong
-  thing without erroring would pass.
-  The dev server is owned by a `globalSetup` rather than Playwright's `webServer` block: on
-  Windows that block does not terminate Vite, so the run hung after its tests had already passed
-  and left an orphan holding the port, which made the *next* run fail with a misleading "already
-  used". `ui-shell` ships the *bookkeeping* half of a shell — which panels
-  exist, which are open, what the layout was — and leaves rendering to the host.
+  thing without erroring would pass. The dev server is owned by a `globalSetup` rather than
+  Playwright's `webServer` block: on Windows that block does not terminate Vite, so the run hung
+  after its tests had already passed and left an orphan holding the port, which made the *next*
+  run fail with a misleading "already used".
+- `ui-shell` ships the *bookkeeping* half of a shell — which panels exist, which are open, what
+  the layout was — and leaves rendering to the host.
 - No engine-side importer, and no geometry in the packages it would read. `engine-bridge` defines
   the format and builds the semantic half from the viewer contracts; mesh payloads need a
   fragments exporter, and the consumer that reads them is downstream work. No vendor layer until

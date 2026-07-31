@@ -95,8 +95,36 @@ export function asDataModel(model: FRAGS.FragmentsModel): FragmentDataModel {
   return model;
 }
 
+/**
+ * The slice of a fragments model that appearance overrides need.
+ *
+ * Kept separate from `FragmentDataModel` because the two are used by different services and a
+ * fake for one should not have to stub the other. A real `FragmentsModel` satisfies both.
+ */
+export interface FragmentAppearanceModel {
+  setVisible(localIds: number[] | undefined, visible: boolean): Promise<void>;
+  resetVisible(): Promise<void>;
+  setColor(localIds: number[] | undefined, color: FragmentColor): Promise<void>;
+  resetHighlight(localIds?: number[]): Promise<void>;
+  getLocalIdsByGuids(guids: string[]): Promise<readonly (number | null)[]>;
+}
+
+/** Structurally `THREE.Color`, declared here so the port needs no `three` import of its own. */
+export interface FragmentColor {
+  readonly r: number;
+  readonly g: number;
+  readonly b: number;
+}
+
+export function asAppearanceModel(model: FRAGS.FragmentsModel): FragmentAppearanceModel {
+  return model;
+}
+
 /** Resolves a model by id. Kept a function so services do not each hold a `FragmentsManager`. */
 export type FragmentModelSource = (modelId: Id) => FragmentDataModel | undefined;
+
+/** As `FragmentModelSource`, for the services that change appearance rather than read data. */
+export type FragmentAppearanceSource = (modelId: Id) => FragmentAppearanceModel | undefined;
 
 const isAttribute = (value: unknown): value is FragmentAttribute =>
   typeof value === "object" && value !== null && "value" in value;
