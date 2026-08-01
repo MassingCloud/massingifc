@@ -17,11 +17,13 @@ import { buildScenePackage } from "./build.js";
 import type {
   ScenePackage,
   ScenePackageProvider,
+  ScenePayload,
   ScenePropertySet,
   SceneNode,
   SceneRelationship,
 } from "./contracts.js";
 import { toRealityLayers } from "./reality.js";
+import { toScenePayload, type GeometrySource } from "./geometry.js";
 
 /**
  * Builds scene packages from the viewer contracts.
@@ -31,11 +33,12 @@ import { toRealityLayers } from "./reality.js";
  * `engine-bridge` stays free of `three` and `@thatopen`. Putting it in the adapter would have tied
  * the export path to one renderer for no benefit.
  *
- * What it does not do is produce geometry. Nothing in the viewer contracts hands out mesh buffers,
- * so this emits the semantic half — identity, class, hierarchy, properties, relationships — and
- * `validateScenePackage` reports the absence rather than leaving a consumer to discover it. That
- * half is already enough for selection, filtering and property inspection; geometry arrives when a
- * fragments exporter exists to supply payloads.
+ * Geometry is attached rather than generated. A `GeometrySource` hands over the model's Fragments
+ * binary and the manifest references it, because Fragments is already the compact open
+ * representation of this geometry and the engine-side consumers read it natively — re-tessellating
+ * would invent a parallel format and lose the per-element addressing it already carries. Without a
+ * source the package carries semantics only, and `validateScenePackage` says so rather than
+ * leaving a consumer to discover it.
  */
 export interface ViewerScenePackageOptions {
   readonly properties: PropertyService;
@@ -48,6 +51,13 @@ export interface ViewerScenePackageOptions {
   readonly sourceUnits?: LinearUnit;
   /** Reality datasets to carry alongside the model. */
   readonly realityObjects?: () => readonly TwinObjectRecord[];
+  /**
+   * Supplies each model's geometry bytes.
+   *
+   * Omitted, the package carries semantics only and `validateScenePackage` says so. Supplied, each
+   * model contributes one payload and every node from that model points at it.
+   */
+  readonly geometry?: GeometrySource;
 }
 
 /** IFC classes that denote a storey, used to stamp `levelGlobalId` down the tree. */
@@ -174,12 +184,36 @@ export function createViewerScenePackageProvider(
         for (const [globalId, owner] of walked.origin) origin.set(globalId, owner);
       }
 
+      const payloads: ScenePayload[] = [];
+      const payloadByModel = new Map<Id, string>();
+      const geometryBytes = new Map<string, Uint8Array>();
+      if (options.geometry) {
+        for (const model of models) {
+          if (request.signal?.aborted === true) {
+            return err(new KernelError("COMMAND_FAILED", "Scene export was cancelled.", {}));
+          }
+          const geometry = await options.geometry(model);
+          // A model with no converted geometry is a normal case, not a failure: a scope can mix
+          // converted and unconverted models, and refusing the whole export would be unhelpful.
+          if (!geometry) continue;
+          const payload = toScenePayload(model.id, geometry);
+          payloads.push(payload);
+          payloadByModel.set(model.id, payload.id);
+          geometryBytes.set(payload.id, geometry.bytes);
+        }
+      }
+
+      const placed = nodes.map((node) => {
+        const payloadId = payloadByModel.get(origin.get(node.globalId) ?? "");
+        return payloadId === undefined ? node : { ...node, payloadId };
+      });
+
       let properties: Record<string, readonly ScenePropertySet[]> | undefined;
-      if (request.includeProperties === true && nodes.length > 0) {
+      if (request.includeProperties === true && placed.length > 0) {
         const resolved = await options.properties.getMany(
           // Each node is asked of the model it came from. Using one model for all of them loses
           // every property in a federated scope, silently, because the ids do not resolve there.
-          nodes.map((node) => ({
+          placed.map((node) => ({
             modelId: origin.get(node.globalId) ?? models[0]!.id,
             globalId: node.globalId,
           })),
@@ -212,7 +246,7 @@ export function createViewerScenePackageProvider(
 
       const realityLayers = toRealityLayers(options.realityObjects?.() ?? []);
 
-      return buildScenePackage({
+      const built = buildScenePackage({
         generator: options.generator ?? "massingifc",
         generatedAt: options.now(),
         sources: models.map((model) => ({
@@ -222,11 +256,14 @@ export function createViewerScenePackageProvider(
         })),
         ...(options.sourceUnits === undefined ? {} : { sourceUnits: options.sourceUnits }),
         ...(geoReference === undefined ? {} : { geoReference }),
-        nodes,
+        nodes: placed,
+        payloads,
         ...(properties === undefined ? {} : { properties }),
         ...(request.includeRelationships === true ? { relationships } : {}),
         ...(realityLayers.length === 0 ? {} : { realityLayers }),
       });
+      if (!built.ok) return err(built.error);
+      return ok({ scene: built.value, payloads: geometryBytes });
     },
   };
 }

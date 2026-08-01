@@ -7,7 +7,12 @@ import type {
   SpatialTreeService,
 } from "@massingifc/viewer-runtime";
 import { describe, expect, it } from "vitest";
-import { createSceneQuery, createViewerScenePackageProvider, toRealityLayer } from "./index.js";
+import {
+  createSceneQuery,
+  createViewerScenePackageProvider,
+  toRealityLayer,
+  type ScenePackage,
+} from "./index.js";
 
 const MODEL: ModelRecord = {
   id: "struct",
@@ -90,9 +95,13 @@ const unwrap = <T>(result: Result<T>): T => {
   return result.value;
 };
 
+/** The manifest half of a build. Most assertions here are about the manifest, not the binaries. */
+const sceneOf = (result: Result<{ readonly scene: ScenePackage }>): ScenePackage =>
+  unwrap(result).scene;
+
 describe("scene packages from the viewer contracts", () => {
   it("turns the spatial tree into GlobalId-keyed nodes", async () => {
-    const scene = unwrap(await provider().build());
+    const scene = sceneOf(await provider().build());
     const query = createSceneQuery(scene);
 
     expect(scene.nodes).toHaveLength(3);
@@ -102,13 +111,13 @@ describe("scene packages from the viewer contracts", () => {
 
   it("skips grouping nodes that carry no element", async () => {
     // The federation root has no GlobalId, so it has no identity and cannot be addressed.
-    expect(unwrap(await provider().build()).nodes.map((node) => node.name)).not.toContain(
+    expect(sceneOf(await provider().build()).nodes.map((node) => node.name)).not.toContain(
       "Federation",
     );
   });
 
   it("reparents children of a grouping node onto the real element above it", async () => {
-    const scene = unwrap(await provider().build());
+    const scene = sceneOf(await provider().build());
     const query = createSceneQuery(scene);
     expect(query.node("0Level00000000000000L1")?.parentGlobalId).toBeUndefined();
     expect(query.ancestors("2Door00000000000000D01").map((node) => node.globalId)).toEqual([
@@ -118,7 +127,7 @@ describe("scene packages from the viewer contracts", () => {
   });
 
   it("stamps the containing storey onto everything beneath it", async () => {
-    const query = createSceneQuery(unwrap(await provider().build()));
+    const query = createSceneQuery(sceneOf(await provider().build()));
     expect(query.byLevel("0Level00000000000000L1").map((node) => node.globalId)).toEqual([
       "1Wall00000000000000W01",
       "2Door00000000000000D01",
@@ -128,7 +137,7 @@ describe("scene packages from the viewer contracts", () => {
   });
 
   it("carries the model's georeference and revision", async () => {
-    const scene = unwrap(await provider().build());
+    const scene = sceneOf(await provider().build());
     expect(scene.geoReference?.sourceCrs).toBe("EPSG:27700");
     expect(scene.sources[0]?.revision).toBe("C01");
     expect(scene.sourceUnits).toBe("mm");
@@ -149,16 +158,16 @@ describe("scene packages from the viewer contracts", () => {
   });
 
   it("only includes properties when asked", async () => {
-    expect(unwrap(await provider().build()).properties).toBeUndefined();
+    expect(sceneOf(await provider().build()).properties).toBeUndefined();
 
-    const scene = unwrap(await provider().build({ includeProperties: true }));
+    const scene = sceneOf(await provider().build({ includeProperties: true }));
     const query = createSceneQuery(scene);
     expect(query.property("1Wall00000000000000W01", "FireRating")).toBe("60");
     expect(query.property("1Wall00000000000000W01", "NetArea", "Quantities")).toBe(12.5);
   });
 
   it("drops non-scalar property values rather than stringifying them", async () => {
-    const scene = unwrap(await provider().build({ includeProperties: true }));
+    const scene = sceneOf(await provider().build({ includeProperties: true }));
     const sets = createSceneQuery(scene).properties("1Wall00000000000000W01");
     // "[object Object]" is indistinguishable from a real value; an absent key is not.
     expect(sets[0]?.properties).not.toHaveProperty("Nested");
@@ -166,9 +175,9 @@ describe("scene packages from the viewer contracts", () => {
   });
 
   it("emits containment edges only when asked", async () => {
-    expect(unwrap(await provider().build()).relationships).toBeUndefined();
+    expect(sceneOf(await provider().build()).relationships).toBeUndefined();
 
-    const scene = unwrap(await provider().build({ includeRelationships: true }));
+    const scene = sceneOf(await provider().build({ includeRelationships: true }));
     expect(
       createSceneQuery(scene).relationships(
         "2Door00000000000000D01",
@@ -220,14 +229,14 @@ describe("reality layers", () => {
   });
 
   it("reaches the package through the provider", async () => {
-    const scene = unwrap(await provider({ realityObjects: () => [splat] }).build());
+    const scene = sceneOf(await provider({ realityObjects: () => [splat] }).build());
     expect(scene.realityLayers).toHaveLength(1);
     expect(scene.realityLayers?.[0]?.measurable).toBe(false);
   });
 
   it("leaves out a layer an engine could never resolve", async () => {
     const { sourceUri: _dropped, ...unresolvable } = splat;
-    const scene = unwrap(await provider({ realityObjects: () => [unresolvable] }).build());
+    const scene = sceneOf(await provider({ realityObjects: () => [unresolvable] }).build());
     // In the scene tree but never loading is worse than absent.
     expect(scene.realityLayers).toBeUndefined();
   });

@@ -196,6 +196,19 @@ export interface ScenePackage {
 }
 
 /**
+ * A manifest together with the bytes its payloads refer to.
+ *
+ * The two travel together because a manifest naming payloads that nobody can supply is not a
+ * package — it is a promise. Keeping them in one value means a caller cannot forget the binaries
+ * and discover it only when an engine fails to find the geometry.
+ */
+export interface ScenePackageBundle {
+  readonly scene: ScenePackage;
+  /** Bytes by payload id. Empty when the package carries semantics only. */
+  readonly payloads: ReadonlyMap<string, Uint8Array>;
+}
+
+/**
  * Produces a scene package for a consuming engine.
  *
  * A capability rather than a function so a deployment can substitute one — an installation that
@@ -208,7 +221,7 @@ export interface ScenePackageProvider {
     readonly includeProperties?: boolean;
     readonly includeRelationships?: boolean;
     readonly signal?: AbortSignal;
-  }): Promise<Result<ScenePackage>>;
+  }): Promise<Result<ScenePackageBundle>>;
 }
 
 export const ScenePackageProviderToken =

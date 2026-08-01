@@ -24,9 +24,10 @@ export interface SceneExportOptions {
  *
  * Returns the manifest alone rather than a packaged archive because this package does not
  * implement ZIP — the same reasoning as the ICDD container. The manifest is self-describing and
- * names its payload paths, and a host that wants one file calls `writeScenePackage` with an
- * archive it owns. Pretending to produce a package here would mean picking a compression
- * implementation on every deployment's behalf.
+ * names its payload paths, and a host that wants one file calls `writeScenePackage` with the
+ * bundle's payloads and an archive it owns. Pretending to produce a package here would mean
+ * picking a compression implementation on every deployment's behalf, and an `ExportAdapter`
+ * returns a single `Uint8Array`, which a multi-file package is not.
  */
 export function createSceneExportAdapter(
   resolveProvider: () => ScenePackageProvider | undefined,
@@ -61,7 +62,7 @@ export function createSceneExportAdapter(
       });
       if (!built.ok) return err(built.error);
 
-      const report = validateScenePackage(built.value);
+      const report = validateScenePackage(built.value.scene);
       if (!report.valid) {
         // Exporting a scene with a stale index or a missing payload would fail inside a consumer
         // written in another language, where the message is far less useful than it is here.
@@ -73,7 +74,7 @@ export function createSceneExportAdapter(
         );
       }
 
-      return ok(encoder.encode(JSON.stringify(built.value)));
+      return ok(encoder.encode(JSON.stringify(built.value.scene)));
     },
   };
 }

@@ -8,6 +8,8 @@ import { createEngineBridgePlugin } from "./plugin.js";
 
 const decoder = new TextDecoder();
 
+const bundle = (scene: ScenePackage) => ({ scene, payloads: new Map<string, Uint8Array>() });
+
 const scene = (): ScenePackage => {
   const result = buildScenePackage({
     generator: "test",
@@ -47,7 +49,7 @@ describe("engine bridge plugin", () => {
   it("exports the manifest once a provider is installed", async () => {
     harness.kernel.capabilities.provide(
       ScenePackageProviderToken,
-      providerOf(async () => ok(scene())),
+      providerOf(async () => ok(bundle(scene()))),
       { version: "0.1.0" },
     );
 
@@ -67,7 +69,7 @@ describe("engine bridge plugin", () => {
       ScenePackageProviderToken,
       providerOf(async (options) => {
         seen = options;
-        return ok(scene());
+        return ok(bundle(scene()));
       }),
       { version: "0.1.0" },
     );
@@ -80,9 +82,8 @@ describe("engine bridge plugin", () => {
     const broken = scene();
     harness.kernel.capabilities.provide(
       ScenePackageProviderToken,
-      providerOf(
-        async (): Promise<Result<ScenePackage>> =>
-          ok({ ...broken, index: { ...broken.index, byGlobalId: { "0Ghost00000000000000G1": 0 } } }),
+      providerOf(async () =>
+        ok(bundle({ ...broken, index: { ...broken.index, byGlobalId: { "0Ghost00000000000000G1": 0 } } })),
       ),
       { version: "0.1.0" },
     );

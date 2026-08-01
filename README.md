@@ -83,7 +83,7 @@ npm install
 npm test
 ```
 
-787 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
+795 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash
@@ -437,9 +437,19 @@ down each branch, and refuses a scope whose models declare different CRSs rather
 and hiding a problem that has to be fixed upstream. Non-scalar property values are dropped rather
 than stringified: `"[object Object]"` is indistinguishable from a real value, an absent key is not.
 
-It does **not** produce geometry — nothing in the viewer contracts hands out mesh buffers — so it
-emits the semantic half, which is already enough for selection, filtering and property inspection.
-`validateScenePackage` reports the absence rather than leaving a consumer to discover it.
+Geometry is **attached, not generated**. A `GeometrySource` hands over the model's Fragments
+binary and the manifest references it. That is deliberate: Fragments is already the compact, open
+representation of exactly this geometry, and the engine-side consumers being built against it read
+it natively — so emitting glTF here would mean inventing a parallel format, decoding geometry the
+engine decodes better, and throwing away the per-element addressing Fragments already carries.
+The manifest supplies what the binary does not: identity keyed by GlobalId, the class and level
+indexes precomputed, property sets, relationships and the georeference. The binary says what the
+shapes are; the manifest says what they mean and how to address them.
+
+`build()` returns the manifest **and** the payload bytes together, because a manifest naming
+payloads nobody can supply is a promise rather than a package. Without a `GeometrySource` the
+package carries semantics only and `validateScenePackage` says so; a scope may freely mix
+converted and unconverted models.
 
 `buildScenePackage` refuses duplicate GlobalIds instead of letting the second silently displace the
 first in the index, and `validateScenePackage` catches stale indexes and missing payloads here,
@@ -483,10 +493,9 @@ Stated plainly:
   run fail with a misleading "already used".
 - `ui-shell` ships the *bookkeeping* half of a shell — which panels exist, which are open, what
   the layout was — and leaves rendering to the host.
-- No engine-side importer, and no geometry in the packages it would read. `engine-bridge` defines
-  the format and builds the semantic half from the viewer contracts; mesh payloads need a
-  fragments exporter, and the consumer that reads them is downstream work. No vendor layer until
-  FragmentsUnreal is public.
+- No engine-side importer. `engine-bridge` defines the package and fills it — semantics from the
+  viewer contracts, geometry as the referenced Fragments binary — but the consumer that reads it
+  is a C++/C# project, not a TypeScript one. No vendor layer until FragmentsUnreal is public.
 - No web or desktop application shell.
 - No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.
 - No migrations exist yet; every schema sits at v1.

@@ -22,6 +22,14 @@ export {
 export { createSceneQuery, type SceneQuery } from "./query.js";
 export { toRealityLayer, toRealityLayers } from "./reality.js";
 export {
+  contentHash,
+  payloadIdFor,
+  toScenePayload,
+  FRAGMENTS_ENCODING,
+  type GeometryPayload,
+  type GeometrySource,
+} from "./geometry.js";
+export {
   createViewerScenePackageProvider,
   type ViewerScenePackageOptions,
 } from "./from-viewer.js";
