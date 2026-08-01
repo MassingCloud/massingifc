@@ -260,6 +260,37 @@ for (const [name, manifest] of manifests) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// 7. The README's dependency-free count
+// ---------------------------------------------------------------------------------------------
+
+// The README states, twice, how many packages carry no third-party dependency. Nobody remembers to
+// update a number like that when adding a package, and nobody did: it had drifted by five before
+// this check existed. Asserting it here costs nothing, since every manifest is already loaded.
+{
+  const NUMBER_WORDS = [
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
+    "nineteen", "twenty", "twenty-one", "twenty-two", "twenty-three", "twenty-four", "twenty-five",
+  ];
+
+  const dependencyFree = [...manifests.values()].filter((manifest) =>
+    Object.keys(manifest.dependencies ?? {}).every((name) => name.startsWith("@massingifc/")),
+  ).length;
+  const expected = NUMBER_WORDS[dependencyFree] ?? String(dependencyFree);
+
+  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  const claims = readme.match(/the other [a-z-]+ (?:do not|dependency-free)/g) ?? [];
+  if (claims.length === 0) {
+    note("README no longer states how many packages are dependency-free; this check is now dead.");
+  }
+  for (const claim of claims) {
+    if (!claim.startsWith(`the other ${expected} `)) {
+      note(`README claims "${claim}" but ${dependencyFree} packages ("${expected}") are dependency-free.`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
 
 if (failures.length > 0) {
   console.error(`\nArchitecture check failed with ${failures.length} problem(s):\n`);

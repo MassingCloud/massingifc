@@ -112,7 +112,7 @@ that `core-kernel` has none at all, that no package outside the adapter imports 
 every package is MIT. Prose cannot hold those; a check can.
 
 Requires **Node 20 or newer**. Every package except `viewer-thatopen` has **no runtime
-dependencies** — that adapter carries `three` and `@thatopen/*` so the other seventeen do not.
+dependencies** — that adapter carries `three` and `@thatopen/*` so the other twenty-two do not.
 
 Two toolchain notes worth knowing:
 
@@ -514,7 +514,7 @@ Stated plainly:
 
 - `viewer-runtime` is contracts by design — it is the interface. `viewer-thatopen` implements it
   against That Open Components and is the **only** package with runtime dependencies, which is
-  precisely what keeps the other seventeen dependency-free.
+  precisely what keeps the other twenty-two dependency-free.
 - The renderer is covered by a Playwright smoke test (`npm run test:browser`) that boots the real
   engine against a real WebGL context and asserts the world builds and disposal releases. Rendered
   *output* is still not asserted — no screenshot comparison — so a change that renders the wrong
