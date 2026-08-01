@@ -21,6 +21,7 @@ from massingifc_scene import (
     write_scene_package,
 )
 
+from .audit import audit_conversion
 from .convert import convert_ifc
 
 
@@ -37,6 +38,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--origin-offset",
         help="x,y,z subtracted from world coordinates to keep the scene near the origin",
+    )
+    parser.add_argument(
+        "--no-audit",
+        action="store_true",
+        help="skip comparing the package against the source file",
     )
     parser.add_argument("--no-properties", action="store_true")
     parser.add_argument("--no-relationships", action="store_true")
@@ -68,11 +74,25 @@ def main(argv: list[str] | None = None) -> int:
             include_relationships=not arguments.no_relationships,
             geometry=geometry,
             geo_reference=geo,
-            on_warning=lambda message: print(f"warning: {message}", file=sys.stderr),
+            # Only when the audit is off. The audit reports unreached products too, and more
+            # precisely; printing both trains a reader to skim past warnings.
+            on_warning=(
+                (lambda message: print(f"warning: {message}", file=sys.stderr))
+                if arguments.no_audit
+                else None
+            ),
         )
     except (ScenePackageError, OSError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
+
+    if not arguments.no_audit:
+        fidelity = audit_conversion(arguments.ifc, scene)
+        for issue in fidelity.issues:
+            print(f"{issue.severity}: {issue.code}: {issue.message}", file=sys.stderr)
+        print(f"fidelity: {fidelity.summary()}", file=sys.stderr)
+        if not fidelity.faithful:
+            return 1
 
     report = validate_scene_package(scene)
     for issue in report.issues:

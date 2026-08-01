@@ -4,6 +4,13 @@ Split from ``massingifc_scene`` so the reader half stays dependency-free: an eng
 CI check should not have to install an IFC toolkit to open a package.
 """
 
-from .convert import convert_ifc
+from .audit import FidelityIssue, FidelityReport, audit_conversion
+from .convert import UnknownUnitError, convert_ifc
 
-__all__ = ["convert_ifc"]
+__all__ = [
+    "FidelityIssue",
+    "FidelityReport",
+    "UnknownUnitError",
+    "audit_conversion",
+    "convert_ifc",
+]

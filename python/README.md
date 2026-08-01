@@ -103,6 +103,34 @@ prints them. Non-scalar property values are
 dropped rather than stringified, because `"[object Object]"` is indistinguishable from a real value
 while an absent key is not.
 
+## Conversion fidelity
+
+`audit_conversion` answers a question nothing else here asks: **does the package contain what the
+IFC contained?** The conformance suite checks the format round-trips between two implementations,
+but both would agree perfectly on a package that is missing a wall. The converter's own tests check
+behaviours somebody thought to write down. Between them sat the two bugs that shipped — elements
+dropped without a word, property sets colliding.
+
+```python
+from massingifc_ifc import audit_conversion, convert_ifc
+
+scene, payloads = convert_ifc("model.ifc")
+report = audit_conversion("model.ifc", scene)
+print(report.summary())          # "1284/1290 products in the package, 0 error(s), 1 warning(s)"
+```
+
+Four invariants, each derived from the IFC rather than from the converter's own traversal —
+re-walking the tree the same way would only prove the walk agrees with itself:
+
+| Check | Severity | Why |
+|---|---|---|
+| Every product accounted for | warning | A missing element is sometimes legitimate; silence about it never is |
+| Class counts match | error | An element the class filter cannot find might as well be absent |
+| Property sets survived | error | The quietest failure: right shape, knows nothing about itself |
+| Containment preserved | error | Asked of each element — if the file says a wall is in a storey, that storey must be above it in the package |
+
+The CLI runs it by default and exits non-zero on an error; `--no-audit` turns it off.
+
 ## Running the tests
 
 ```bash
