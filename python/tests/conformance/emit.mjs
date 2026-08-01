@@ -54,14 +54,33 @@ const built = bridge.buildScenePackage({
   generatedAt: "2026-07-27T12:00:00.000Z",
   sourceUnits: "mm",
   sources: [{ modelId: "struct", modelName: "Structure", revision: "C01" }],
+  // Every optional field the format defines is populated somewhere in this fixture. That is the
+  // point of it: a field either implementation forgets shows up as a difference rather than as
+  // silence, which is how `materials` was dropped for a whole commit without a test noticing.
   geoReference: {
     sourceCrs: "EPSG:27700",
+    targetCrs: "EPSG:4326",
     units: "mm",
     verticalDatum: "ODN",
     method: "survey",
     originOffset: [530_000_000, 180_000_000, 0],
-    accuracy: { horizontal: 0.02 },
+    localToGlobal: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1000, 2000, 0, 1],
+    trueNorthAngle: 12.5,
+    accuracy: { horizontal: 0.02, vertical: 0.05 },
+    establishedAt: "2026-01-01T00:00:00.000Z",
   },
+  materials: [
+    {
+      id: "m1",
+      name: "Concrete",
+      baseColor: [0.6, 0.6, 0.6, 1],
+      metallic: 0,
+      roughness: 0.9,
+      opacity: 1,
+      doubleSided: false,
+      texturePayloadId: "geometry-struct",
+    },
+  ],
   payloads: [payload],
   nodes: [
     { globalId: "0Level00000000000000L1", name: "Level 1", ifcClass: "IFCBUILDINGSTOREY" },
@@ -74,6 +93,8 @@ const built = bridge.buildScenePackage({
       transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 3000, 1500, 0, 1],
       bounds: [0, 0, 0, 3000, 200, 2400],
       payloadId: "geometry-struct",
+      geometryIndex: 3,
+      materialId: "m1",
       transientLocalId: 4172,
     },
     {
@@ -83,6 +104,16 @@ const built = bridge.buildScenePackage({
       parentGlobalId: "1Wall00000000000000W01",
       levelGlobalId: "0Level00000000000000L1",
       payloadId: "geometry-struct",
+    },
+    {
+      globalId: "3Slab00000000000000S01",
+      name: "Ground slab",
+      ifcClass: "IFCSLAB",
+      parentGlobalId: "0Level00000000000000L1",
+      levelGlobalId: "0Level00000000000000L1",
+      // Empty rather than absent — the distinction the two writers once disagreed on.
+      transform: [],
+      bounds: [],
     },
   ],
   properties: {
@@ -107,7 +138,9 @@ const built = bridge.buildScenePackage({
       name: "Facade capture",
       kind: "gaussian-splat",
       measurable: false,
+      payloadId: "geometry-struct",
       sourceUri: "blob:splat",
+      transform: [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1],
       geoReference: { sourceCrs: "EPSG:27700", units: "m" },
     },
   ],

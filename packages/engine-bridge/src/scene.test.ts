@@ -334,6 +334,18 @@ describe("regressions", () => {
     if (!read.ok) expect(read.error.message).toMatch(/no usable index/);
   });
 
+  it("never turns a malformed bounds array into nulls", () => {
+    // The declared type is six numbers, but a manifest is JSON and nothing enforces that at
+    // runtime. Indexing a shorter array gives `undefined * factor` = NaN, which JSON.stringify
+    // writes as null — six nulls where a consumer expects coordinates, reported by nothing.
+    const scene = built({
+      sourceUnits: "mm",
+      nodes: [{ ...WALL, bounds: [] as unknown as [number, number, number, number, number, number] }],
+    });
+    expect(scene.nodes[0]?.bounds).toEqual([]);
+    expect(JSON.parse(JSON.stringify(scene)).nodes[0].bounds).toEqual([]);
+  });
+
   it("refuses an index whose positions are not integers", async () => {
     const archive = new MemoryArchive();
     await archive.write(

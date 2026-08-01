@@ -46,14 +46,12 @@ function scaleTransform(transform: SceneTransform, factor: number): SceneTransfo
 
 function scaleBounds(bounds: SceneBounds, factor: number): SceneBounds {
   if (factor === 1) return bounds;
-  return [
-    bounds[0] * factor,
-    bounds[1] * factor,
-    bounds[2] * factor,
-    bounds[3] * factor,
-    bounds[4] * factor,
-    bounds[5] * factor,
-  ];
+  // Mapped rather than indexed. The type says six numbers, but a manifest is JSON and nothing
+  // enforces that at runtime — indexing a shorter array yields `undefined * factor`, which is NaN,
+  // which `JSON.stringify` writes as `null`. Malformed input would then leave the package
+  // carrying six nulls where a consumer expects coordinates, with nothing reporting it.
+  const scaled = Array.from(bounds, (value) => value * factor);
+  return scaled as unknown as SceneBounds;
 }
 
 /**

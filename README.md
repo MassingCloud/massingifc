@@ -83,7 +83,7 @@ npm install
 npm test
 ```
 
-796 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
+797 tests, including a cross-plugin integration suite that runs all fifteen capability plugins in one
 kernel and exercises the chain from geometry to money to site.
 
 ```bash

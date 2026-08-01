@@ -20,6 +20,11 @@ something, and `tests/test_conformance.py` runs a package through both direction
 - Python writes → TypeScript reads (checked by `tests/conformance/verify.mjs`).
 - Both writers are compared field by field, so a difference in whether an absent value is *omitted*
   or written as `null` fails the build rather than surfacing months later in an engine.
+- A **fixed-point round-trip**: the Python model reads a maximal manifest, writes it straight back,
+  and the two documents must match exactly. This is the check that generalises. Asserting field by
+  field only covers the fields somebody remembered — `materials` was dropped entirely for a whole
+  commit because no test mentioned it. A fixed-point test has no such gap, and a companion test
+  asserts the fixture still populates every field so the check cannot be quietly weakened.
 
 The FNV-1a content hash is implemented twice, deliberately, and the conformance suite checks the
 two agree. If they did not, a Python-written package would look changed to a TypeScript reader and

@@ -26,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from massingifc_scene import (  # noqa: E402
     FRAGMENTS_ENCODING,
     DirectoryArchive,
+    ScenePackage,
+    SceneMaterial,
     GeoAccuracy,
     GeoReference,
     SceneImporter,
@@ -72,10 +74,10 @@ class ConformanceTests(unittest.TestCase):
             importer = SceneImporter.open(DirectoryArchive(root))
 
             # Identity and the precomputed indexes.
-            self.assertEqual(len(importer), 3)
+            self.assertEqual(len(importer), 4)
             self.assertEqual(importer.node("1Wall00000000000000W01").name, "External wall")
             self.assertEqual(len(importer.by_class("IFCDOOR")), 1)
-            self.assertEqual(len(importer.by_level("0Level00000000000000L1")), 2)
+            self.assertEqual(len(importer.by_level("0Level00000000000000L1")), 3)
 
             # Hierarchy.
             self.assertEqual(
@@ -197,6 +199,70 @@ class ConformanceTests(unittest.TestCase):
             verified = _run_node("verify.mjs", root)
             self.assertEqual(verified.returncode, 0, verified.stderr or verified.stdout)
 
+    def test_the_python_model_loses_nothing_it_reads(self):
+        """Read a maximal manifest, write it straight back, and require an exact match.
+
+        This is the check that generalises. Asserting field by field only ever covers the fields
+        somebody remembered to assert on — `materials` was dropped entirely for a whole commit
+        because no test mentioned it. A fixed-point round-trip has no such gap: any field the
+        model does not know about disappears on the way through and the comparison fails, whether
+        or not anyone thought of it. The fixture is deliberately maximal so "any field" means all
+        of them.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            emitted = _run_node("emit.mjs", root)
+            self.assertEqual(emitted.returncode, 0, emitted.stderr or emitted.stdout)
+
+            original = json.loads((root / "scene.json").read_text(encoding="utf-8"))
+            round_tripped = ScenePackage.from_json(original).to_json()
+
+            self.assertEqual(
+                round_tripped,
+                original,
+                "the Python model altered or dropped part of a package it read",
+            )
+
+    def test_the_fixture_actually_exercises_every_field(self):
+        """A fixed-point test is only as good as the fixture it runs on.
+
+        Without this, quietly narrowing the fixture would weaken the check above and nothing would
+        report it — the failure mode of every "comprehensive" test that is not itself checked.
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _run_node("emit.mjs", root)
+            manifest = json.loads((root / "scene.json").read_text(encoding="utf-8"))
+
+        for key in (
+            "sourceUnits", "geoReference", "materials", "payloads",
+            "properties", "relationships", "realityLayers", "sources",
+        ):
+            self.assertIn(key, manifest, f"the fixture no longer covers {key}")
+
+        geo = manifest["geoReference"]
+        for key in (
+            "sourceCrs", "targetCrs", "units", "verticalDatum", "originOffset",
+            "localToGlobal", "trueNorthAngle", "method", "accuracy", "establishedAt",
+        ):
+            self.assertIn(key, geo, f"the fixture no longer covers geoReference.{key}")
+
+        covered = set()
+        for node in manifest["nodes"]:
+            covered.update(node)
+        for key in (
+            "globalId", "name", "ifcClass", "parentGlobalId", "levelGlobalId", "transform",
+            "bounds", "payloadId", "geometryIndex", "materialId", "transientLocalId",
+        ):
+            self.assertIn(key, covered, f"the fixture no longer covers nodes.{key}")
+
+        # The empty-array case specifically, since that is a distinction and not just a field.
+        self.assertTrue(
+            any(node.get("transform") == [] for node in manifest["nodes"]),
+            "the fixture no longer covers an empty transform",
+        )
+
+
     def test_the_two_writers_agree_on_the_wire(self):
         """The manifests are compared field by field, not just 'both parse'.
 
@@ -215,15 +281,12 @@ class ConformanceTests(unittest.TestCase):
             generated_at=from_ts["generatedAt"],
             source_units="mm",
             sources=[SceneSource("struct", "Structure", "C01")],
-            geo_reference=GeoReference(
-                source_crs="EPSG:27700",
-                units="mm",
-                vertical_datum="ODN",
-                method="survey",
-                origin_offset=[530_000_000, 180_000_000, 0],
-                accuracy=GeoAccuracy(horizontal=0.02),
-            ),
+            # Taken from the fixture rather than hand-written, so widening the fixture cannot
+            # leave this test quietly comparing a narrower georeference than the one under test.
+            # Already in metres, so `to_metres()` inside the builder is a no-op.
+            geo_reference=GeoReference.from_json(from_ts["geoReference"]),
             payloads=[ScenePayload.from_json(from_ts["payloads"][0])],
+            materials=[SceneMaterial.from_json(entry) for entry in from_ts["materials"]],
             nodes=[SceneNode.from_json(node) for node in from_ts["nodes"]],
             properties={
                 key: [ScenePropertySet.from_json(entry) for entry in sets]
@@ -240,7 +303,16 @@ class ConformanceTests(unittest.TestCase):
 
         # Nodes came back through `from_json` already converted, so re-converting would double the
         # scaling; compare everything else, then the nodes against the source.
-        for key in ("formatVersion", "units", "sourceUnits", "sources", "index", "payloads"):
+        for key in (
+            "formatVersion",
+            "units",
+            "sourceUnits",
+            "sources",
+            "index",
+            "payloads",
+            "materials",
+            "geoReference",
+        ):
             self.assertEqual(from_py[key], from_ts[key], f"{key} disagrees")
         self.assertEqual(from_py["properties"], from_ts["properties"])
         self.assertEqual(from_py["relationships"], from_ts["relationships"])
