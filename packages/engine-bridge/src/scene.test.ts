@@ -334,6 +334,20 @@ describe("regressions", () => {
     if (!read.ok) expect(read.error.message).toMatch(/no usable index/);
   });
 
+  it("refuses an index whose positions are not integers", async () => {
+    const archive = new MemoryArchive();
+    await archive.write(
+      SCENE_MANIFEST_PATH,
+      new TextEncoder().encode(
+        JSON.stringify({ ...built(), index: { byClass: {}, byLevel: {}, byGlobalId: { X: "0" } } }),
+      ),
+    );
+    const read = await readScenePackage(archive);
+    // A string position resolves to nothing at lookup time, so the element quietly stops being
+    // selectable. Both implementations refuse it at read.
+    expect(read.ok).toBe(false);
+  });
+
   it("rejects payload paths that climb out of the package", () => {
     expect(safePayloadPath("payloads/geometry-0.glb")).toBe("payloads/geometry-0.glb");
     expect(safePayloadPath("./payloads/a.bin")).toBe("payloads/a.bin");

@@ -16,6 +16,7 @@ from .model import (
     ScenePackage,
     ScenePackageError,
     SceneIndex,
+    SceneMaterial,
     SceneNode,
     ScenePayload,
     ScenePropertySet,
@@ -42,6 +43,7 @@ def build_scene_package(
     nodes: Sequence[SceneNode],
     sources: Sequence[SceneSource] = (),
     payloads: Sequence[ScenePayload] = (),
+    materials: Optional[Sequence[SceneMaterial]] = None,
     source_units: Optional[str] = None,
     geo_reference: Optional[GeoReference] = None,
     properties: Optional[Mapping[str, Sequence[ScenePropertySet]]] = None,
@@ -74,8 +76,14 @@ def build_scene_package(
             ifc_class=node.ifc_class,
             parent_global_id=node.parent_global_id,
             level_global_id=node.level_global_id,
-            transform=_scale_transform(node.transform, factor) if node.transform else None,
-            bounds=[value * factor for value in node.bounds] if node.bounds else None,
+            # `is not None`, not truthiness: an empty array is a value the TypeScript writer
+            # emits, and dropping it here would make the two implementations disagree.
+            transform=(
+                _scale_transform(node.transform, factor) if node.transform is not None else None
+            ),
+            bounds=(
+                [value * factor for value in node.bounds] if node.bounds is not None else None
+            ),
             payload_id=node.payload_id,
             geometry_index=node.geometry_index,
             material_id=node.material_id,
@@ -105,6 +113,7 @@ def build_scene_package(
         geo_reference=geo_reference.to_metres() if geo_reference else None,
         payloads=list(payloads),
         nodes=placed,
+        materials=list(materials) if materials is not None else None,
         properties=properties,
         relationships=list(relationships) if relationships is not None else None,
         reality_layers=list(reality_layers) if reality_layers is not None else None,
@@ -134,6 +143,7 @@ def validate_scene_package(scene: ScenePackage) -> SceneValidationReport:
     """
     issues: List[SceneIssue] = []
     payload_ids = {payload.id for payload in scene.payloads}
+    material_ids = {material.id for material in scene.materials or ()}
     global_ids = {node.global_id for node in scene.nodes}
 
     for node in scene.nodes:
@@ -144,6 +154,16 @@ def validate_scene_package(scene: ScenePackage) -> SceneValidationReport:
                     "unknown-payload-reference",
                     f"Node {node.global_id!r} references payload {node.payload_id!r}, "
                     "which is not in the package.",
+                    node.global_id,
+                )
+            )
+        if node.material_id is not None and node.material_id not in material_ids:
+            issues.append(
+                SceneIssue(
+                    "warning",
+                    "unknown-material",
+                    f"Node {node.global_id!r} references material {node.material_id!r}, "
+                    "which is not declared.",
                     node.global_id,
                 )
             )

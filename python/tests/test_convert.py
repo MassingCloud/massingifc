@@ -202,5 +202,106 @@ class ConvertTests(unittest.TestCase):
             convert_ifc(self.path.parent / "absent.ifc")
 
 
+@unittest.skipUnless(HAS_IFCOPENSHELL, "ifcopenshell is not installed")
+class UnitTests(unittest.TestCase):
+    """Length units, which the converter used to guess at."""
+
+    def setUp(self):
+        import tempfile
+
+        self._directory = tempfile.TemporaryDirectory()
+        self.root = Path(self._directory.name)
+
+    def tearDown(self):
+        self._directory.cleanup()
+
+    def _write(self, name, make_unit):
+        path = self.root / name
+        ifc = ifcopenshell.file(schema="IFC4")
+        units = None
+        if make_unit is not None:
+            units = ifc.create_entity("IfcUnitAssignment", Units=[make_unit(ifc)])
+        ifc.create_entity(
+            "IfcProject", GlobalId="0Project000000000000P1", Name="P", UnitsInContext=units
+        )
+        ifc.write(str(path))
+        return path
+
+    @staticmethod
+    def _conversion(name, factor):
+        def make(ifc):
+            metre = ifc.create_entity("IfcSIUnit", UnitType="LENGTHUNIT", Name="METRE")
+            measure = ifc.create_entity(
+                "IfcMeasureWithUnit",
+                ValueComponent=ifc.create_entity("IfcLengthMeasure", factor),
+                UnitComponent=metre,
+            )
+            return ifc.create_entity(
+                "IfcConversionBasedUnit",
+                UnitType="LENGTHUNIT",
+                Name=name,
+                ConversionFactor=measure,
+                Dimensions=ifc.create_entity("IfcDimensionalExponents", 1, 0, 0, 0, 0, 0, 0),
+            )
+
+        return make
+
+    def convert(self, path, **kwargs):
+        from massingifc_ifc import convert_ifc
+
+        return convert_ifc(path, generated_at="2026-07-27T12:00:00.000Z", **kwargs)
+
+    def test_reads_feet_rather_than_assuming_metres(self):
+        # The norm on a US project. Assuming metres scales the whole model by 3.28 silently.
+        path = self._write("imperial.ifc", self._conversion("foot", 0.3048))
+        scene, _ = self.convert(path)
+        self.assertEqual(scene.source_units, "ft")
+
+    def test_distinguishes_survey_feet_from_international_feet(self):
+        path = self._write("survey.ifc", self._conversion("US survey foot", 1200 / 3937))
+        scene, _ = self.convert(path)
+        self.assertEqual(scene.source_units, "us-ft")
+
+    def test_reads_millimetres(self):
+        def milli(ifc):
+            return ifc.create_entity(
+                "IfcSIUnit", UnitType="LENGTHUNIT", Prefix="MILLI", Name="METRE"
+            )
+
+        scene, _ = self.convert(self._write("mm.ifc", milli))
+        self.assertEqual(scene.source_units, "mm")
+
+    def test_refuses_a_prefix_the_format_cannot_express(self):
+        from massingifc_ifc.convert import UnknownUnitError
+
+        def deci(ifc):
+            return ifc.create_entity(
+                "IfcSIUnit", UnitType="LENGTHUNIT", Prefix="DECI", Name="METRE"
+            )
+
+        path = self._write("deci.ifc", deci)
+        # Previously reported as metres — a silent 10x error.
+        with self.assertRaises(UnknownUnitError):
+            self.convert(path)
+
+    def test_refuses_an_unrecognised_conversion_factor(self):
+        from massingifc_ifc.convert import UnknownUnitError
+
+        path = self._write("cubit.ifc", self._conversion("cubit", 0.4572))
+        with self.assertRaises(UnknownUnitError):
+            self.convert(path)
+
+    def test_refuses_a_file_with_no_declared_unit(self):
+        from massingifc_ifc.convert import UnknownUnitError
+
+        with self.assertRaises(UnknownUnitError):
+            self.convert(self._write("none.ifc", None))
+
+    def test_lets_the_caller_state_the_unit_explicitly(self):
+        # Refusing must not become a wall: a caller who knows can say so.
+        scene, _ = self.convert(self._write("none2.ifc", None), assume_units="ft")
+        self.assertEqual(scene.source_units, "ft")
+
+
 if __name__ == "__main__":
     unittest.main()

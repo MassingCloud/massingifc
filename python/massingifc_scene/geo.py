@@ -89,8 +89,12 @@ class GeoReference:
                 "units": self.units,
                 "targetCrs": self.target_crs,
                 "verticalDatum": self.vertical_datum,
-                "originOffset": list(self.origin_offset) if self.origin_offset else None,
-                "localToGlobal": list(self.local_to_global) if self.local_to_global else None,
+                "originOffset": (
+                    list(self.origin_offset) if self.origin_offset is not None else None
+                ),
+                "localToGlobal": (
+                    list(self.local_to_global) if self.local_to_global is not None else None
+                ),
                 "trueNorthAngle": self.true_north_angle,
                 "method": self.method,
                 "accuracy": self.accuracy.to_json() if self.accuracy else None,
@@ -126,10 +130,12 @@ class GeoReference:
             return self
 
         offset = (
-            [value * factor for value in self.origin_offset] if self.origin_offset else None
+            [value * factor for value in self.origin_offset]
+            if self.origin_offset is not None
+            else None
         )
         local = None
-        if self.local_to_global:
+        if self.local_to_global is not None:
             local = [
                 value * factor if 12 <= index <= 14 else value
                 for index, value in enumerate(self.local_to_global)

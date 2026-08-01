@@ -10,8 +10,10 @@ prints, an importer had to resolve.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 from .codec import DirectoryArchive, ZipArchive
@@ -19,11 +21,22 @@ from .importer import SceneImporter
 from .model import ScenePackageError
 
 
-def _archive(path: Path):
+def _archive(path: Path, stack: contextlib.ExitStack):
+    """Open a package, translating filesystem failures into the error type this CLI reports.
+
+    A zip is registered with the caller's `ExitStack` so its handle is closed on the way out —
+    on Windows an open `ZipFile` keeps the file locked, which matters as soon as anything calls
+    `main()` more than once in a process.
+    """
     if path.is_dir():
         return DirectoryArchive(path)
     if path.suffix.lower() == ".zip":
-        return ZipArchive(path)
+        try:
+            return stack.enter_context(ZipArchive(path))
+        except (OSError, zipfile.BadZipFile) as error:
+            raise ScenePackageError(f"Could not open {path}: {error}") from error
+    if not path.exists():
+        raise ScenePackageError(f"{path} does not exist")
     raise ScenePackageError(f"{path} is neither a package directory nor a .zip")
 
 
@@ -37,11 +50,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--classes", action="store_true", help="list IFC classes present")
     arguments = parser.parse_args(argv)
 
-    try:
-        importer = SceneImporter.open(_archive(arguments.package))
-    except ScenePackageError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+    with contextlib.ExitStack() as stack:
+        try:
+            importer = SceneImporter.open(_archive(arguments.package, stack))
+        except ScenePackageError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        return _report(importer, arguments)
+
+
+def _report(importer: SceneImporter, arguments: argparse.Namespace) -> int:
 
     if arguments.element:
         node = importer.node(arguments.element)

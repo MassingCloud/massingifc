@@ -127,7 +127,13 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 function isIndex(value: unknown): boolean {
   if (!isRecord(value)) return false;
-  return ["byClass", "byLevel", "byGlobalId"].every((key) => isRecord(value[key]));
+  if (!["byClass", "byLevel", "byGlobalId"].every((key) => isRecord(value[key]))) return false;
+  // Value types too, not just the shape. A non-integer position is accepted by every check above
+  // and then silently resolves to nothing at lookup time, so an element quietly stops being
+  // selectable — the same failure a stale index causes, arriving by a different route.
+  return Object.values(value["byGlobalId"] as Record<string, unknown>).every(
+    (position) => typeof position === "number" && Number.isInteger(position) && position >= 0,
+  );
 }
 
 const majorOf = (version: string): string => version.split(".")[0] ?? version;

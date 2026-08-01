@@ -115,6 +115,52 @@ class SceneNode:
 
 
 @dataclass(frozen=True)
+class SceneMaterial:
+    """Appearance for a node that references it by ``material_id``.
+
+    Carried even though nothing here produces materials yet: a reader that drops a field it does
+    not use turns a round-trip into data loss, and the nodes would keep pointing at ids the
+    materials list no longer contains.
+    """
+
+    id: str
+    name: Optional[str] = None
+    base_color: Optional[Sequence[float]] = None
+    metallic: Optional[float] = None
+    roughness: Optional[float] = None
+    opacity: Optional[float] = None
+    double_sided: Optional[bool] = None
+    texture_payload_id: Optional[str] = None
+
+    def to_json(self) -> dict:
+        return _drop_none(
+            {
+                "id": self.id,
+                "name": self.name,
+                "baseColor": list(self.base_color) if self.base_color is not None else None,
+                "metallic": self.metallic,
+                "roughness": self.roughness,
+                "opacity": self.opacity,
+                "doubleSided": self.double_sided,
+                "texturePayloadId": self.texture_payload_id,
+            }
+        )
+
+    @staticmethod
+    def from_json(data: Mapping[str, Any]) -> "SceneMaterial":
+        return SceneMaterial(
+            id=data["id"],
+            name=data.get("name"),
+            base_color=data.get("baseColor"),
+            metallic=data.get("metallic"),
+            roughness=data.get("roughness"),
+            opacity=data.get("opacity"),
+            double_sided=data.get("doubleSided"),
+            texture_payload_id=data.get("texturePayloadId"),
+        )
+
+
+@dataclass(frozen=True)
 class ScenePropertySet:
     name: str
     properties: Mapping[str, Any]
@@ -260,6 +306,7 @@ class ScenePackage:
     sources: Sequence[SceneSource] = field(default_factory=tuple)
     payloads: Sequence[ScenePayload] = field(default_factory=tuple)
     nodes: Sequence[SceneNode] = field(default_factory=tuple)
+    materials: Optional[Sequence[SceneMaterial]] = None
     properties: Optional[Mapping[str, Sequence[ScenePropertySet]]] = None
     relationships: Optional[Sequence[SceneRelationship]] = None
     reality_layers: Optional[Sequence[SceneRealityLayer]] = None
@@ -281,6 +328,8 @@ class ScenePackage:
             data["geoReference"] = self.geo_reference.to_json()
         data["payloads"] = [payload.to_json() for payload in self.payloads]
         data["nodes"] = [node.to_json() for node in self.nodes]
+        if self.materials is not None:
+            data["materials"] = [material.to_json() for material in self.materials]
         if self.properties is not None:
             data["properties"] = {
                 global_id: [entry.to_json() for entry in sets]
@@ -296,6 +345,7 @@ class ScenePackage:
     @staticmethod
     def from_json(data: Mapping[str, Any]) -> "ScenePackage":
         geo = data.get("geoReference")
+        materials = data.get("materials")
         properties = data.get("properties")
         relationships = data.get("relationships")
         layers = data.get("realityLayers")
@@ -309,6 +359,11 @@ class ScenePackage:
             sources=[SceneSource.from_json(entry) for entry in data.get("sources", [])],
             payloads=[ScenePayload.from_json(entry) for entry in data.get("payloads", [])],
             nodes=[SceneNode.from_json(entry) for entry in data.get("nodes", [])],
+            materials=(
+                [SceneMaterial.from_json(entry) for entry in materials]
+                if materials is not None
+                else None
+            ),
             properties=(
                 {
                     global_id: [ScenePropertySet.from_json(entry) for entry in sets]

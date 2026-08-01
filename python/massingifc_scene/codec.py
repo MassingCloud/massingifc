@@ -252,6 +252,16 @@ def read_scene_package(archive: SceneArchive) -> ScenePackage:
     ):
         raise ScenePackageError("Scene manifest has no usable index.")
 
+    # Value types too, not just the shape: a string position is accepted by every check above
+    # and then fails as a bare TypeError deep inside a consumer that indexed with it.
+    if any(
+        isinstance(position, bool) or not isinstance(position, int)
+        for position in index["byGlobalId"].values()
+    ):
+        raise ScenePackageError(
+            "Scene manifest has a non-integer position in its byGlobalId index."
+        )
+
     return ScenePackage.from_json(parsed)
 
 

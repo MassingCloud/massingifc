@@ -81,6 +81,11 @@ with time and memory, rather than parsing IFC in every user's session.
 It does **not** tessellate. Re-encoding geometry here would invent a parallel format, duplicate what
 Fragments already does, and discard the per-element addressing it carries.
 
+**It refuses units it cannot express** rather than defaulting. A feet-based file — the norm on a US
+project — declares length as an `IfcConversionBasedUnit`, and quietly reading that as metres scales
+the whole model by 3.28 with nothing anywhere saying so. `ft`, `us-ft`, `mm`, `cm` and `m` are
+recognised; anything else raises, and `assume_units=` lets a caller who knows state one explicitly.
+
 Quantities are hoisted into a `Quantities` set *and* left where IFC put them: takeoff wants them by
 name as numbers, a property panel wants them in their own set. Non-scalar property values are
 dropped rather than stringified, because `"[object Object]"` is indistinguishable from a real value

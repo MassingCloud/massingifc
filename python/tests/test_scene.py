@@ -350,3 +350,87 @@ class GeoTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RegressionTests(unittest.TestCase):
+    """Fixes for findings from the review of the first Python commit."""
+
+    def test_empty_arrays_are_emitted_not_dropped(self):
+        # TypeScript emits `[]` for an empty transform. Testing truthiness here made the two
+        # writers disagree on the wire for the same input.
+        scene = build(nodes=[SceneNode(global_id="X", transform=[], bounds=[])])
+        emitted = scene.nodes[0].to_json()
+        self.assertEqual(emitted["transform"], [])
+        self.assertEqual(emitted["bounds"], [])
+
+    def test_an_empty_origin_offset_survives(self):
+        scene = build(geo_reference=GeoReference(source_crs="EPSG:27700", units="m", origin_offset=[]))
+        self.assertEqual(scene.geo_reference.to_json()["originOffset"], [])
+
+    def test_materials_survive_a_round_trip(self):
+        from massingifc_scene import SceneMaterial, read_scene_package
+
+        scene = build(
+            materials=[SceneMaterial(id="m1", name="Concrete", base_color=[0.5, 0.5, 0.5, 1])],
+            nodes=[SceneNode(global_id="X", material_id="m1")],
+        )
+        archive = MemoryArchive()
+        write_scene_package(archive, scene)
+        reread = read_scene_package(archive)
+
+        # Dropping a field a reader does not use turns a round-trip into data loss, and leaves
+        # every node pointing at an id the materials list no longer contains.
+        self.assertEqual(len(reread.materials), 1)
+        self.assertEqual(reread.materials[0].name, "Concrete")
+        self.assertEqual(reread.nodes[0].material_id, "m1")
+
+    def test_reports_a_node_referencing_an_undeclared_material(self):
+        report = validate_scene_package(build(nodes=[SceneNode(global_id="X", material_id="absent")]))
+        # The eighth code, which the TypeScript validator has always had.
+        self.assertIn("unknown-material", [issue.code for issue in report.issues])
+
+    def test_refuses_a_non_integer_index_position(self):
+        import json
+
+        archive = MemoryArchive(
+            {
+                "scene.json": json.dumps(
+                    {
+                        "formatVersion": "1.0",
+                        "generator": "g",
+                        "generatedAt": "t",
+                        "sources": [],
+                        "units": "m",
+                        "payloads": [],
+                        "nodes": [{"globalId": "X"}],
+                        "index": {"byClass": {}, "byLevel": {}, "byGlobalId": {"X": "0"}},
+                    }
+                ).encode()
+            }
+        )
+        # Previously accepted, then failed as a bare TypeError inside a consumer.
+        with self.assertRaises(ScenePackageError):
+            read_scene_package(archive)
+
+
+class CliTests(unittest.TestCase):
+    """The CLI reports failures the way it reports every other one, not as a traceback."""
+
+    @staticmethod
+    def _run(argument: str) -> int:
+        import contextlib
+        import io
+
+        from massingifc_scene.__main__ import main
+
+        # The message is the behaviour under test; capturing it keeps the suite's own output clean.
+        with contextlib.redirect_stderr(io.StringIO()) as captured:
+            code = main([argument])
+        assert captured.getvalue().startswith("error: "), captured.getvalue()
+        return code
+
+    def test_reports_a_missing_zip_rather_than_a_traceback(self):
+        self.assertEqual(self._run(str(Path(__file__).parent / "definitely-absent.zip")), 1)
+
+    def test_reports_a_path_that_is_neither_directory_nor_zip(self):
+        self.assertEqual(self._run(str(Path(__file__))), 1)
