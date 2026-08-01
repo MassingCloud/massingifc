@@ -22,7 +22,7 @@ try:
 except ImportError:  # pragma: no cover - environment-dependent
     HAS_IFCOPENSHELL = False
 
-from massingifc_scene import SceneIndex, SceneNode, ScenePackage  # noqa: E402
+from massingifc_scene import SceneImporter, SceneIndex, SceneNode, ScenePackage  # noqa: E402
 
 
 def _fixture(path: Path, *, orphan: bool = False) -> None:
@@ -252,3 +252,71 @@ class AuditTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(HAS_IFCOPENSHELL, "ifcopenshell is not installed")
+class RealFileShapeTests(unittest.TestCase):
+    """Shapes found by running the converter over real files rather than fixtures I invented."""
+
+    def setUp(self):
+        self._directory = tempfile.TemporaryDirectory()
+        self.root = Path(self._directory.name)
+
+    def tearDown(self):
+        self._directory.cleanup()
+
+    def test_voids_and_ports_are_excluded_without_being_reported_as_losses(self):
+        from massingifc_ifc import audit_conversion, convert_ifc
+
+        path = self.root / "openings.ifc"
+        _fixture(path)
+        ifc = ifcopenshell.open(str(path))
+        wall = ifc.by_guid("1Wall00000000000000W01")
+        opening = ifc.create_entity(
+            "IfcOpeningElement", GlobalId="7Void00000000000000V1", Name="Window void"
+        )
+        ifc.create_entity(
+            "IfcRelVoidsElement",
+            GlobalId="0Voids000000000000V1",
+            RelatingBuildingElement=wall,
+            RelatedOpeningElement=opening,
+        )
+        ifc.create_entity("IfcDistributionPort", GlobalId="7Port00000000000000P1")
+        ifc.write(str(path))
+
+        warnings = []
+        scene, _ = convert_ifc(path, generated_at="t", on_warning=warnings.append)
+        report = audit_conversion(path, scene)
+
+        # A void is a subtraction from a wall, not a thing to draw; a port is a connection point.
+        # Both are IfcProduct, and counting them as losses would report failures on a file that
+        # converted perfectly — a warning that fires when nothing is wrong is one nobody reads.
+        self.assertNotIn("7Void00000000000000V1", SceneImporter(scene))
+        self.assertNotIn("7Port00000000000000P1", SceneImporter(scene))
+        self.assertEqual(warnings, [])
+        self.assertEqual(report.issues, [])
+        self.assertTrue(report.faithful)
+
+    def test_says_so_when_a_file_is_a_type_library_rather_than_a_model(self):
+        from massingifc_ifc import convert_ifc
+
+        path = self.root / "library.ifc"
+        ifc = ifcopenshell.file(schema="IFC4")
+        units = ifc.create_entity(
+            "IfcUnitAssignment",
+            Units=[ifc.create_entity("IfcSIUnit", UnitType="LENGTHUNIT", Name="METRE")],
+        )
+        ifc.create_entity(
+            "IfcProject", GlobalId="0Project000000000000P1", UnitsInContext=units
+        )
+        # The shape every one of the family packs turned out to be: definitions, no instances.
+        ifc.create_entity("IfcDoorType", GlobalId="0Type00000000000000T1", Name="Door 900")
+        ifc.write(str(path))
+
+        warnings = []
+        scene, _ = convert_ifc(path, generated_at="t", on_warning=warnings.append)
+
+        # An empty package here is correct and looks broken, so it has to be said out loud.
+        self.assertEqual(len(scene.nodes), 1)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("type library", warnings[0])

@@ -131,6 +131,22 @@ re-walking the tree the same way would only prove the walk agrees with itself:
 
 The CLI runs it by default and exits non-zero on an error; `--no-audit` turns it off.
 
+Two categories are excluded from a package on purpose, and so are not counted as losses: **feature
+elements** (`IfcOpeningElement` and friends — a void is a subtraction from a wall, not a thing to
+draw) and **ports** (`IfcDistributionPort` — a connection point on a pipe, not geometry). Both are
+`IfcProduct`, and counting them would have reported 47 missing elements on a house that converted
+perfectly. A warning that fires when nothing is wrong is one nobody reads when something is.
+
+A file of type definitions with no placed products — which is exactly what a family library is —
+converts to an empty package. That is correct and looks broken, so the converter says so.
+
+## What it has been run against
+
+Beyond the generated fixtures: `BasicHouse.ifc` (52 MB, IFC4, produced by EXPRESS Data Manager —
+131 nodes, 130/130 products, no warnings, ~6 s) and the `massing-families` type-library packs.
+Both findings above came from that exercise rather than from a test I thought to write, which is
+the argument for pointing it at more real files rather than writing more fixtures.
+
 ## Running the tests
 
 ```bash

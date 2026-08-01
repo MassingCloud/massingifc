@@ -100,10 +100,15 @@ def audit_conversion(source: Path | str | Any, scene: ScenePackage) -> FidelityR
 
     ifc_file = source if hasattr(source, "by_type") else ifcopenshell.open(str(Path(source)))
 
+    from .convert import is_excluded
+
+    # Voids and ports are products, and are deliberately not scene nodes. Counting them as losses
+    # would report 47 missing elements on a house that converted perfectly — and a warning that
+    # fires when nothing is wrong is one nobody reads when something is.
     products = [
         product
         for product in ifc_file.by_type("IfcProduct")
-        if getattr(product, "GlobalId", None)
+        if getattr(product, "GlobalId", None) and not is_excluded(product)
     ]
     importer = SceneImporter(scene, check_index=False)
     issues: List[FidelityIssue] = []

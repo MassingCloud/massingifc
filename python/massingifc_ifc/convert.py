@@ -44,6 +44,19 @@ _SI_PREFIXES = {
 #: enough to tell them apart and loose enough to survive a file that rounds.
 _CONVERSION_FACTORS = (("ft", 0.3048, 1e-9), ("us-ft", 1200 / 3937, 1e-9))
 
+#: Product supertypes that are deliberately not scene nodes.
+#:
+#: A void is a subtraction from a wall, not a thing to draw; a port is a connection point on a
+#: pipe, not geometry. Both are `IfcProduct`, both are reachable in a real file, and neither means
+#: anything to an engine that is going to instance one actor per node. Stated here so their absence
+#: is a decision on the record rather than an accident of which relationships the walk follows.
+EXCLUDED_SUPERTYPES = ("IfcFeatureElement", "IfcPort")
+
+
+def is_excluded(product: Any) -> bool:
+    return any(product.is_a(supertype) for supertype in EXCLUDED_SUPERTYPES)
+
+
 #: Classes whose GlobalId is stamped onto everything beneath them as `levelGlobalId`.
 _STOREY = "IfcBuildingStorey"
 
@@ -225,6 +238,12 @@ def convert_ifc(
         ifc_class = entity.is_a()
         next_level = level
 
+        if global_id and is_excluded(entity):
+            # Reachable but deliberately not a node. Its children, if any, still are.
+            for child in _contained(entity):
+                visit(child, parent, next_level)
+            return
+
         if global_id:
             if ifc_class == _STOREY:
                 next_level = global_id
@@ -272,8 +291,23 @@ def convert_ifc(
     unreached = [
         product
         for product in ifc_file.by_type("IfcProduct")
-        if getattr(product, "GlobalId", None) and product.GlobalId not in seen
+        if getattr(product, "GlobalId", None)
+        and product.GlobalId not in seen
+        and not is_excluded(product)
     ]
+    if on_warning is not None and not any(
+        node.global_id != root.GlobalId for node in nodes for root in roots
+    ):
+        # A file of type definitions with no instances converts to an empty package, which is
+        # correct and looks broken. Real family libraries are exactly this shape, so say so rather
+        # than hand back an empty package and let the reader guess which of the two it is.
+        type_count = len(ifc_file.by_type("IfcTypeProduct"))
+        if type_count:
+            on_warning(
+                f"This file declares {type_count} type definition(s) and no placed products: it is "
+                "a type library rather than a model, so the package has no elements."
+            )
+
     if unreached and on_warning is not None:
         sample = ", ".join(f"{p.is_a()} {p.GlobalId}" for p in unreached[:5])
         on_warning(
