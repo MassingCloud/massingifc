@@ -461,6 +461,37 @@ this is what those implementations agree with.
 the time of writing; when it is, a vendor layer can be added underneath this contract without
 anything upstream changing. A vendor-specific contract could not have been.
 
+## Python
+
+Two packages under `python/`, neither a port of the platform — the kernel, the plugins and the
+viewer stay in TypeScript, and the viewer could not move anyway because three.js and `@thatopen`
+are browser JavaScript.
+
+| Package | What it is | Dependencies |
+|---|---|---|
+| `massingifc_scene` | The scene package format: importer, reader, writer, validator | none — stdlib only |
+| `massingifc_ifc` | IFC to scene package, server-side | `ifcopenshell` |
+
+`SceneImporter` is the **engine-side importer**: the consumer half of the format, written as the
+reference a native integration is ported from. An Unreal C++ plugin will not call it, but it has
+to make the same three decisions — address by GlobalId and never by array position, verify the
+precomputed index rather than trusting it blindly, and fetch geometry only when asked — and
+having those written down once with tests beats prose.
+
+```bash
+python -m massingifc_scene out/ --element 1Wall00000000000000W01
+python -m massingifc_ifc model.ifc --out out/ --fragments model.frag --crs EPSG:27700
+```
+
+The point of a second implementation is that it is a **check on the first**. The format claims a
+consumer needs nothing but a JSON parser and a file handle; `python/tests/test_conformance.py`
+turns that from a claim into a test by running a package both ways — TypeScript writes and Python
+reads, Python writes and TypeScript reads — and comparing the two writers field by field, so a
+disagreement about whether an absent value is omitted or `null` fails the build instead of
+surfacing months later inside an engine. The FNV-1a payload hash is implemented twice on purpose,
+and the suite checks the two agree; if they did not, a Python-written package would look changed
+to a TypeScript reader and be re-fetched on every sync.
+
 ## Relationship to `ibuilder/massing`
 
 These are complementary, not competing.
@@ -493,9 +524,9 @@ Stated plainly:
   run fail with a misleading "already used".
 - `ui-shell` ships the *bookkeeping* half of a shell — which panels exist, which are open, what
   the layout was — and leaves rendering to the host.
-- No engine-side importer. `engine-bridge` defines the package and fills it — semantics from the
-  viewer contracts, geometry as the referenced Fragments binary — but the consumer that reads it
-  is a C++/C# project, not a TypeScript one. No vendor layer until FragmentsUnreal is public.
+- No **engine-native** importer. `python/massingifc_scene` is a working consumer and the
+  reference a C++ or C# integration is ported from, but nothing loads a package into Unreal or
+  Unity yet. No vendor layer until FragmentsUnreal is public.
 - No web or desktop application shell.
 - No ZIP implementation — ICDD containers need a host-supplied `ContainerArchive`.
 - No migrations exist yet; every schema sits at v1.

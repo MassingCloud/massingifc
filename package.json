@@ -19,7 +19,8 @@
     "clean": "node node_modules/typescript/lib/tsc.js --build --clean",
     "check:architecture": "node scripts/check-architecture.mjs",
     "verify": "npm run check:architecture && npm run typecheck && npm test",
-    "test:browser": "playwright test --config playwright.config.mjs"
+    "test:browser": "playwright test --config playwright.config.mjs",
+    "test:python": "cd python && python -m unittest discover -s tests"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.0",

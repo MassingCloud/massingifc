@@ -81,3 +81,28 @@ jobs:
       # engine on a cold cache. Keeping it out of `verify` leaves the fast feedback loop fast.
       - name: Boot the viewer against real WebGL
         run: npm run test:browser
+
+  python:
+    name: Python (scene package + conformance)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: npm ci
+      # The conformance tests read a package the TypeScript side writes, so `dist/` has to
+      # exist. Without this they skip, and a skipped conformance check is not a check.
+      - name: Build the TypeScript side
+        run: npm run typecheck
+      # `massingifc_scene` is stdlib-only by design; only the IFC converter needs a dependency,
+      # and installing it here is what keeps its tests from silently skipping in CI.
+      - name: Install ifcopenshell
+        run: pip install ifcopenshell
+      - name: Test
+        run: python -m unittest discover -s tests -v
+        working-directory: python
