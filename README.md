@@ -492,6 +492,17 @@ surfacing months later inside an engine. The FNV-1a payload hash is implemented 
 and the suite checks the two agree; if they did not, a Python-written package would look changed
 to a TypeScript reader and be re-fetched on every sync.
 
+Conformance is not the same question as fidelity, and both are checked. Two implementations can
+agree perfectly on a package that is missing a wall — so `audit_conversion` compares a package
+against the IFC it came from: every product accounted for, class counts matching, property sets
+surviving, and containment asked of each element via its own relationship rather than re-derived
+by walking the tree the same way the converter did.
+
+It has been run over real files, not only generated fixtures — a 52 MB IFC4 house (130/130
+products, no warnings, ~6 s) and the `massing-families` type-library packs. Both of the last two
+converter bugs came out of that exercise rather than from a test anyone thought to write, which
+is the argument for pointing it at more real files rather than writing more fixtures.
+
 ## Relationship to `ibuilder/massing`
 
 These are complementary, not competing.
