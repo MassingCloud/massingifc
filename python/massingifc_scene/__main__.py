@@ -60,7 +60,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _report(importer: SceneImporter, arguments: argparse.Namespace) -> int:
-
+    """Print whichever view the flags asked for. Split out so the archive's lifetime is
+    bounded by the caller's `ExitStack` rather than by this function returning."""
     if arguments.element:
         node = importer.node(arguments.element)
         if node is None:

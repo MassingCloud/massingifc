@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from massingifc_scene import (
     FRAGMENTS_ENCODING,
@@ -46,9 +46,6 @@ _CONVERSION_FACTORS = (("ft", 0.3048, 1e-9), ("us-ft", 1200 / 3937, 1e-9))
 
 #: Classes whose GlobalId is stamped onto everything beneath them as `levelGlobalId`.
 _STOREY = "IfcBuildingStorey"
-
-#: Spatial containers that structure the tree but are not building elements themselves.
-_SPATIAL = ("IfcProject", "IfcSite", "IfcBuilding", "IfcBuildingStorey", "IfcSpace")
 
 
 def _now() -> str:
@@ -164,8 +161,15 @@ def _property_sets(element: Any) -> List[ScenePropertySet]:
 
     if quantities:
         # Hoisted as well as left in place: takeoff wants them by name as numbers, a property
-        # panel wants them where IFC put them.
-        sets.append(ScenePropertySet(name="Quantities", properties=quantities))
+        # panel wants them where IFC put them. Merged into an existing set of the same name rather
+        # than appended beside it — a file may legitimately contain a pset called "Quantities", and
+        # two sets sharing a name means any consumer keying a dictionary by it loses one.
+        existing = next((index for index, s in enumerate(sets) if s.name == "Quantities"), None)
+        if existing is None:
+            sets.append(ScenePropertySet(name="Quantities", properties=quantities))
+        else:
+            merged = {**sets[existing].properties, **quantities}
+            sets[existing] = ScenePropertySet(name="Quantities", properties=merged)
 
     return sets
 
@@ -190,6 +194,7 @@ def convert_ifc(
     geometry: Optional[bytes] = None,
     geo_reference: Optional[GeoReference] = None,
     assume_units: Optional[str] = None,
+    on_warning: Optional[Callable[[str], None]] = None,
 ) -> Tuple[ScenePackage, Mapping[str, bytes]]:
     """Convert an IFC file into a package and its payload bytes.
 
@@ -259,6 +264,23 @@ def convert_ifc(
         raise ScenePackageError("This IFC file declares no IfcProject, so it has no spatial root.")
     for root in roots:
         visit(root, None, None)
+
+    # Anything the spatial walk did not reach is absent from the package. That happens for real
+    # reasons — an element aggregated under another element, or simply orphaned — but an element
+    # that silently fails to arrive is the same class of problem as a silently assumed unit, so it
+    # is counted and reported rather than left to be discovered downstream.
+    unreached = [
+        product
+        for product in ifc_file.by_type("IfcProduct")
+        if getattr(product, "GlobalId", None) and product.GlobalId not in seen
+    ]
+    if unreached and on_warning is not None:
+        sample = ", ".join(f"{p.is_a()} {p.GlobalId}" for p in unreached[:5])
+        on_warning(
+            f"{len(unreached)} product(s) are not reachable through the spatial hierarchy and are "
+            f"not in the package: {sample}"
+            + (" ..." if len(unreached) > 5 else "")
+        )
 
     payloads: List[ScenePayload] = []
     payload_bytes: Dict[str, bytes] = {}

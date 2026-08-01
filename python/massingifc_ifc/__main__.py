@@ -68,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             include_relationships=not arguments.no_relationships,
             geometry=geometry,
             geo_reference=geo,
+            on_warning=lambda message: print(f"warning: {message}", file=sys.stderr),
         )
     except (ScenePackageError, OSError) as error:
         print(f"error: {error}", file=sys.stderr)

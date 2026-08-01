@@ -12,7 +12,7 @@ inferred from a naming convention that could drift.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, Mapping, Optional, Sequence
 
 from .geo import GeoReference, _drop_none
 

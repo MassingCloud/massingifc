@@ -92,7 +92,14 @@ the whole model by 3.28 with nothing anywhere saying so. `ft`, `us-ft`, `mm`, `c
 recognised; anything else raises, and `assume_units=` lets a caller who knows state one explicitly.
 
 Quantities are hoisted into a `Quantities` set *and* left where IFC put them: takeoff wants them by
-name as numbers, a property panel wants them in their own set. Non-scalar property values are
+name as numbers, a property panel wants them in their own set. If the file already has a set called
+`Quantities`, the two are merged rather than both emitted — two sets sharing a name means any
+consumer keying a dictionary by it loses one.
+
+**Products the spatial walk never reaches are reported, not dropped in silence.** An orphaned
+element is a real thing to find in a real file, but an element that quietly fails to arrive is the
+same class of problem as a quietly assumed unit. Pass `on_warning=` to hear about them; the CLI
+prints them. Non-scalar property values are
 dropped rather than stringified, because `"[object Object]"` is indistinguishable from a real value
 while an absent key is not.
 

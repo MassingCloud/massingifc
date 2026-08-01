@@ -305,3 +305,113 @@ class UnitTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(HAS_IFCOPENSHELL, "ifcopenshell is not installed")
+class ReportingTests(unittest.TestCase):
+    """Things the converter must say out loud rather than handle silently."""
+
+    def setUp(self):
+        import tempfile
+
+        self._directory = tempfile.TemporaryDirectory()
+        self.root = Path(self._directory.name)
+
+    def tearDown(self):
+        self._directory.cleanup()
+
+    def _model(self, name, *, orphan=False, colliding_set=False):
+        path = self.root / name
+        ifc = ifcopenshell.file(schema="IFC4")
+        units = ifc.create_entity(
+            "IfcUnitAssignment",
+            Units=[ifc.create_entity("IfcSIUnit", UnitType="LENGTHUNIT", Name="METRE")],
+        )
+        project = ifc.create_entity(
+            "IfcProject", GlobalId="0Project000000000000P1", UnitsInContext=units
+        )
+        site = ifc.create_entity("IfcSite", GlobalId="0Site00000000000000S1")
+        building = ifc.create_entity("IfcBuilding", GlobalId="0Bldg00000000000000B1")
+        storey = ifc.create_entity("IfcBuildingStorey", GlobalId="0Level00000000000000L1")
+        wall = ifc.create_entity("IfcWall", GlobalId="1Wall00000000000000W01", Name="W")
+        for index, (parent, kids) in enumerate(
+            [(project, [site]), (site, [building]), (building, [storey])], 1
+        ):
+            ifc.create_entity(
+                "IfcRelAggregates",
+                GlobalId=f"0Agg000000000000000A{index}",
+                RelatingObject=parent,
+                RelatedObjects=kids,
+            )
+        ifc.create_entity(
+            "IfcRelContainedInSpatialStructure",
+            GlobalId="0Cont0000000000000C1",
+            RelatingStructure=storey,
+            RelatedElements=[wall],
+        )
+
+        if orphan:
+            # In the file, but linked to nothing — so the spatial walk never sees it.
+            ifc.create_entity("IfcWall", GlobalId="9Orphan000000000000O1", Name="Orphan")
+
+        if colliding_set:
+            pset = ifc.create_entity(
+                "IfcPropertySet",
+                GlobalId="0Pset00000000000000P1",
+                Name="Quantities",
+                HasProperties=[
+                    ifc.create_entity(
+                        "IfcPropertySingleValue",
+                        Name="Note",
+                        NominalValue=ifc.create_entity("IfcLabel", "authored"),
+                    )
+                ],
+            )
+            qto = ifc.create_entity(
+                "IfcElementQuantity",
+                GlobalId="0Qto000000000000000Q1",
+                Name="Qto_WallBaseQuantities",
+                Quantities=[ifc.create_entity("IfcQuantityArea", Name="NetArea", AreaValue=12.5)],
+            )
+            for index, definition in enumerate((pset, qto), 1):
+                ifc.create_entity(
+                    "IfcRelDefinesByProperties",
+                    GlobalId=f"0Def000000000000000D{index}",
+                    RelatedObjects=[wall],
+                    RelatingPropertyDefinition=definition,
+                )
+
+        ifc.write(str(path))
+        return path
+
+    def convert(self, path, **kwargs):
+        from massingifc_ifc import convert_ifc
+
+        return convert_ifc(path, generated_at="2026-07-27T12:00:00.000Z", **kwargs)
+
+    def test_reports_products_the_spatial_walk_never_reached(self):
+        warnings = []
+        scene, _ = self.convert(
+            self._model("orphan.ifc", orphan=True), on_warning=warnings.append
+        )
+
+        # An element that silently fails to arrive is the same class of problem as a silently
+        # assumed unit: quiet, wrong, and discovered somewhere else entirely.
+        self.assertNotIn("9Orphan000000000000O1", SceneImporter(scene))
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("9Orphan000000000000O1", warnings[0])
+
+    def test_says_nothing_when_every_product_is_reachable(self):
+        warnings = []
+        self.convert(self._model("clean.ifc"), on_warning=warnings.append)
+        self.assertEqual(warnings, [])
+
+    def test_merges_quantities_into_a_property_set_of_the_same_name(self):
+        scene, _ = self.convert(self._model("collide.ifc", colliding_set=True))
+        importer = SceneImporter(scene)
+        names = [entry.name for entry in importer.property_sets("1Wall00000000000000W01")]
+
+        # Two sets sharing a name means any consumer keying a dictionary by it loses one.
+        self.assertEqual(len(names), len(set(names)))
+        self.assertEqual(importer.property("1Wall00000000000000W01", "Note", "Quantities"), "authored")
+        self.assertEqual(importer.property("1Wall00000000000000W01", "NetArea", "Quantities"), 12.5)
