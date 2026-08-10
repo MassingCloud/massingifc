@@ -4,10 +4,27 @@ Two packages. Neither is a port of the platform — the kernel, the plugins and 
 TypeScript, and the viewer could not move anyway because three.js and `@thatopen` are browser
 JavaScript. What lives here is the part that genuinely benefits from being outside that runtime.
 
-| Package | What it is | Dependencies |
-|---|---|---|
-| `massingifc_scene` | The scene package format: **importer**, reader, writer, validator | none — stdlib only |
-| `massingifc_ifc` | IFC to scene package, server-side | `ifcopenshell` |
+| Package | What it is | Dependencies | Licence to check before vendoring |
+|---|---|---|---|
+| `massingifc_scene` | The scene package format: **importer**, reader, writer, validator | none — stdlib only | MIT, and nothing else to clear |
+| `massingifc_ifc` | IFC to scene package, server-side | `ifcopenshell` | MIT, but **ifcopenshell is LGPL-3.0-or-later** |
+
+The split is deliberate and it is the reason the reader half is easy to take: vendoring
+`massingifc_scene` adds no dependency and no licence to review. `massingifc_ifc` is MIT too, but it
+cannot run without `ifcopenshell`, which is LGPLv3+. If your organisation allows only
+MIT/BSD/Apache/ISC, take the reader and leave the converter — or confirm LGPL is acceptable first.
+An engine importer, a CI check, or a web app wants the reader anyway; only a server-side conversion
+step needs the other half.
+
+### If you are vendoring this
+
+- **Take the packages, not `tests/`.** The suite needs its own fixtures and a TypeScript build for
+  the conformance step. Write an integration test in your own codebase instead — one that asks
+  whether a model *you* author survives the round trip, read back by `SceneImporter`. A round trip
+  over your own writer and your own reader passes on the wrong format.
+- If you do take the tests, the modules are named `test_mi_*` so they can land in a flat namespace
+  without colliding with yours.
+- Pin the commit from a clean tree, or the recorded SHA does not describe what was copied.
 
 ## Why this exists
 
